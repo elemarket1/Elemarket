@@ -2,8 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { z } from "zod";
 import { getSearchProvider } from "@/lib/market/adapters/search-registry.server";
-import { env } from "@/lib/env.server";
-
+import { env, isWorkspacePreview } from "@/lib/env.server";
 export type SearchInput = z.infer<typeof searchInputSchema>;
 
 const SEARCH_VERSION = "search-v2";
