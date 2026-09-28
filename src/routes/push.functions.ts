@@ -21,3 +21,8 @@ export const unregisterPushToken = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(unregisterSchema)
   .handler(({ data, context }) => unregisterPushDevice({ userId: getAuthenticatedUserId(context), ...data }));
+
+export const pushRegistrationProvider = createServerFn({ method: "GET" }).middleware([authMiddleware]).handler(async () => {
+  const { selectedProvider } = await import("@/lib/providers/catalog.mjs");
+  return selectedProvider("push").key;
+});

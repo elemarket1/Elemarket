@@ -26,7 +26,15 @@ export type PaymentAdapterResult = {
   metadata?: Record<string, unknown>;
 };
 
+export type PaymentCapabilities = {
+  initialize: boolean; checkout: boolean; verify: boolean; webhook: boolean; refund: boolean;
+  idempotentInitialization: boolean; merchantAccount: boolean; deliveryDisputeHold: boolean;
+  currencies: readonly string[]; methods: readonly string[];
+};
 export interface PaymentProviderAdapter {
+  readonly capabilities: PaymentCapabilities;
+  readonly checkoutHosts: readonly string[];
+  webhookSignature?(headers: Headers): string | null;
   /** Provider must guarantee duplicate-safe initialization for the supplied idempotency key. */
   readonly supportsIdempotentInitialization: boolean;
   initializationReference?(attemptId: string): string;
@@ -67,6 +75,8 @@ async function genericVerify(rawBody: string, signature: string | null, secret: 
 }
 
 export class JsonHttpPaymentAdapter implements PaymentProviderAdapter {
+  readonly capabilities: PaymentCapabilities = { initialize: true, checkout: true, verify: true, webhook: true, refund: false, idempotentInitialization: false, merchantAccount: false, deliveryDisputeHold: false, currencies: [], methods: [] };
+  readonly checkoutHosts: readonly string[] = [];
   readonly supportsIdempotentInitialization = false;
   constructor(private readonly endpoint: string, private readonly secret: string) {}
   async verifyWebhook(rawBody: string, signature: string | null): Promise<boolean> { return genericVerify(rawBody, signature, this.secret); }
@@ -110,6 +120,8 @@ export class JsonHttpPaymentAdapter implements PaymentProviderAdapter {
 }
 
 export class PreviewPaymentAdapter implements PaymentProviderAdapter {
+  readonly capabilities: PaymentCapabilities = { initialize: true, checkout: true, verify: false, webhook: false, refund: false, idempotentInitialization: true, merchantAccount: false, deliveryDisputeHold: false, currencies: ['GHS'], methods: ['mobile_money','card','bank_transfer'] };
+  readonly checkoutHosts: readonly string[] = [];
   readonly supportsIdempotentInitialization = true;
   async createPayment(input: PaymentAdapterInput): Promise<PaymentAdapterResult> {
     return {

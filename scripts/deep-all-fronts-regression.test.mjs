@@ -27,7 +27,7 @@ test('external provider requests reject redirects so credentials cannot be forwa
     'src/lib/market/adapters/providers/paystack.ts',
     'src/lib/market/adapters/payment.ts',
     'src/lib/market/adapters/delivery.server.ts',
-    'src/lib/market/adapters/location.server.ts',
+    'src/lib/market/adapters/providers/geoapify.server.ts',
     'src/lib/market/search.server.ts',
     'src/lib/auth/email/providers/resend.server.ts',
     'src/lib/auth/otp/providers/arkesel.server.ts',

@@ -1,26 +1,8 @@
 #!/usr/bin/env node
-if (process.env.ELEMARKET_PUSH_PROVIDER === "disabled") {
-  console.log("[firebase] push disabled for this deployment");
-  process.exit(0);
-}
-const required = [
-  "VITE_FIREBASE_API_KEY",
-  "VITE_FIREBASE_AUTH_DOMAIN",
-  "VITE_FIREBASE_PROJECT_ID",
-  "VITE_FIREBASE_STORAGE_BUCKET",
-  "VITE_FIREBASE_MESSAGING_SENDER_ID",
-  "VITE_FIREBASE_APP_ID",
-  "VITE_FIREBASE_VAPID_KEY",
-];
-const missing = required.filter((key) => !process.env[key]?.trim());
-if (missing.length) {
-  console.error(`[firebase] missing web push build variables: ${missing.join(", ")}`);
-  process.exit(1);
-}
+import { browserPolicy } from '../src/lib/providers/browser-policy.mjs';
 try {
-  new URL(`https://${process.env.VITE_FIREBASE_AUTH_DOMAIN}`);
-} catch {
-  console.error("[firebase] VITE_FIREBASE_AUTH_DOMAIN is invalid");
-  process.exit(1);
-}
-console.log("[firebase] web push build configuration validated.");
+  const policy = browserPolicy();
+  const missing = policy.build.filter(key => !process.env[key]?.trim());
+  if (missing.length) throw new Error(`push: missing selected browser adapter configuration ${missing.join(', ')}`);
+  console.log('[push] selected browser adapter build configuration validated');
+} catch (error) { console.error(`[push] ${error.message}`); process.exit(1); }

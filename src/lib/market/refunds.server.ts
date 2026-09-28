@@ -72,7 +72,7 @@ async function executeProviderRefundForActor(input: { requestId: string; actorId
     );
     if (!bindings[0]?.driver_key) throw new Error("Refund payment driver/binding is unavailable");
     const adapter = await getPaymentAdapter(request.provider_key, bindings[0].driver_key);
-    if (!adapter.refundPayment)
+    if (!adapter.capabilities.refund || !adapter.refundPayment)
       throw new Error("Configured payment provider does not support refunds");
     result = await adapter.refundPayment({
       providerReference: request.provider_reference,

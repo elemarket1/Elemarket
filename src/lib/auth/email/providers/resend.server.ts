@@ -1,3 +1,4 @@
+import { parseResendWebhook } from "./resend-webhook.server";
 import type { EmailProviderAdapter, EmailSendInput, EmailSendResult } from "../types";
 
 const RESEND_API_URL = "https://api.resend.com/emails";
@@ -15,6 +16,7 @@ function optionalEnv(key: string): string | undefined {
 
 export class ResendEmailAdapter implements EmailProviderAdapter {
   readonly key = "resend";
+  readonly parseAuthenticatedWebhook = parseResendWebhook;
 
   async send(input: EmailSendInput): Promise<EmailSendResult> {
     const apiKey = requiredEnv("RESEND_API_KEY");

@@ -1,3 +1,4 @@
+import { assertPublicHttpsEndpoint } from "@/lib/security/ssrf.server";
 import { z } from "zod";
 import { getSql } from "@/lib/db";
 import { isWorkspacePreview } from "@/lib/env.server";
@@ -20,6 +21,7 @@ async function resolveDestination(input: DeliveryQuoteInput): Promise<DeliveryQu
 export class JsonHttpDeliveryAdapter implements DeliveryCarrierAdapter {
   constructor(private readonly endpoint: string, private readonly secret: string) {}
   async quote(input: DeliveryQuoteInput): Promise<DeliveryQuoteResult> {
+    await assertPublicHttpsEndpoint(this.endpoint);
     const response = await fetch(this.endpoint, {
       method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${this.secret}` },
       body: JSON.stringify(input), redirect: "error", signal: AbortSignal.timeout(10_000),
@@ -68,9 +70,11 @@ class PreviewDeliveryAdapter implements DeliveryCarrierAdapter {
 }
 
 export function getDeliveryAdapter(providerKey: string): DeliveryCarrierAdapter {
-  if (providerKey === "preview" || (isWorkspacePreview() && !process.env.ELEMARKET_DELIVERY_PROVIDER)) {
+  if (isWorkspacePreview() && (providerKey === "preview" || !process.env.ELEMARKET_DELIVERY_PROVIDER)) {
     return new PreviewDeliveryAdapter();
   }
+  if (!/^[a-z0-9_-]{2,64}$/.test(providerKey)) throw new Error("Invalid delivery provider");
+  if (providerKey !== process.env.ELEMARKET_DELIVERY_PROVIDER?.trim()) throw new Error("Delivery provider is not selected");
   const normalized = providerKey.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
   const endpoint = process.env[`ELEMARKET_DELIVERY_${normalized}_ENDPOINT`]?.trim();
   const secret = process.env[`ELEMARKET_DELIVERY_${normalized}_SECRET`]?.trim();

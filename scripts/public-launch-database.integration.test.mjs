@@ -467,6 +467,7 @@ integration(
       "@/lib/db": { getSql: async () => ({ query }) },
       "@/lib/market/adapters/registry": {
         getPaymentAdapter: async () => ({
+          capabilities: { refund: true },
           refundPayment: async () => {
             calls++;
             throw new Error("provider timeout");
@@ -512,6 +513,7 @@ integration(
       "@/lib/db": { getSql: async () => ({ query }) },
       "@/lib/market/adapters/registry": {
         getPaymentAdapter: async () => ({
+          capabilities: { refund: true },
           refundPayment: async () => {
             await webhook(
               query,
@@ -694,6 +696,7 @@ integration(
       "@/lib/db": { getSql: async () => ({ query }) },
       "@/lib/market/adapters/registry": {
         getPaymentAdapter: async () => ({
+          capabilities: { refund: true },
           refundPayment: async () => {
             calls++;
             return { status: "processing", providerRefundId: "admin-regression" };
@@ -756,7 +759,8 @@ test(
         "@/lib/db": { getSql: async () => ({ query }) },
         "@/lib/market/adapters/registry": {
           getPaymentAdapter: async () => ({
-            refundPayment: async () => {
+            capabilities: { refund: true },
+          refundPayment: async () => {
               calls++;
               return { status: "processing", providerRefundId: "concurrent-refund" };
             },

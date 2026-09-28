@@ -28,12 +28,12 @@ test("Firebase public configuration never uses the server service-account secret
 
 test("CSP permits the Firebase browser SDK without exposing broad script origins", () => {
   const source = read("vite.config.ts");
-  assert.match(source, /script-src[^\n]*https:\/\/www\.gstatic\.com/);
+  assert.match(source, /browserPolicy\(\).script/);
 });
 
 test("production CSP allows the Firebase browser SDK", () => {
-  const source = read("src/lib/security/headers.ts");
-  assert.match(source, /script-src[^\n]*https:\/\/www\.gstatic\.com/);
+  const source = read("src/lib/notifications/push/providers/fcm-browser.mjs");
+  assert.match(source, /fcmBrowserPolicy.*https:\/\/www\.gstatic\.com/);
 });
 
 test("FCM browser config is explicitly validated before token registration", () => {

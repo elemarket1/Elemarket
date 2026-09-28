@@ -1,8 +1,8 @@
 import { Bell, BellOff, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { enableFcmPush } from "@/lib/notifications/push/fcm.client";
+import { enablePush } from "@/lib/notifications/push/client-registry";
 
-const STORAGE_KEY = "elemarket:fcm-enabled";
+const STORAGE_KEY = "elemarket:push-enabled";
 
 export function PushNotificationButton() {
   const [busy, setBusy] = useState(false);
@@ -20,7 +20,7 @@ export function PushNotificationButton() {
   const onClick = async () => {
     setBusy(true);
     try {
-      await enableFcmPush();
+      await enablePush();
       localStorage.setItem(STORAGE_KEY, "1");
       setEnabled(true);
     } catch (error) {

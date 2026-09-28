@@ -3,23 +3,26 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const server = fs.readFileSync('src/lib/market/adapters/location.server.ts','utf8');
+const adapter = fs.readFileSync('src/lib/market/adapters/providers/geoapify.server.ts','utf8');
+const registry = fs.readFileSync('src/lib/market/adapters/location-registry.server.ts','utf8');
+const contract = fs.readFileSync('src/lib/market/adapters/location-provider.ts','utf8');
 const client = fs.readFileSync('src/lib/market/adapters/location.ts','utf8');
 const migration = fs.readFileSync('migrations/0052_geoapify_location_cache.sql','utf8');
 const delivery = fs.readFileSync('src/lib/market/adapters/delivery.server.ts','utf8');
 const checkout = fs.readFileSync('src/routes/checkout.tsx','utf8');
 
 test('Geoapify location adapter is provider-neutral and server-side', () => {
-  assert.match(server, /export interface LocationProvider/);
-  assert.match(server, /class GeoapifyLocationProvider/);
-  assert.match(server, /GEOAPIFY_API_KEY/);
+  assert.match(contract, /export interface LocationProvider/);
+  assert.match(adapter, /class GeoapifyLocationProvider/);
+  assert.match(registry, /GEOAPIFY_API_KEY/);
   assert.doesNotMatch(client, /GEOAPIFY_API_KEY/);
 });
 
 test('Geoapify is Ghana constrained and protected by timeout/validation', () => {
-  assert.match(server, /filter.*countrycode:gh/);
-  assert.match(server, /AbortSignal\.timeout\(8_000\)/);
+  assert.match(adapter, /filter.*countrycode:gh/);
+  assert.match(adapter, /AbortSignal\.timeout\(8_000\)/);
   assert.match(server, /Only Ghana/);
-  assert.match(server, /safeParse/);
+  assert.match(adapter, /safeParse/);
 });
 
 test('Location results are cached for quota protection', () => {
@@ -36,5 +39,6 @@ test('Delivery resolves coordinates when checkout only supplies an address', () 
 });
 
 test('Checkout includes required Geoapify attribution', () => {
-  assert.match(checkout, /geoapify\.com/);
+  assert.match(checkout, /attribution.data/);
+  assert.match(adapter, /Geoapify.*OpenStreetMap/);
 });

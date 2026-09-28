@@ -59,7 +59,7 @@ export async function requestEmailOtp(
   const active = await sql.query<{ id: string; cooldown_until: string }>(
     `select id, cooldown_until
        from otp_challenges
-      where destination=$1 and purpose=$2 and provider='resend' and status in ('sending','pending')
+      where destination=$1 and purpose=$2 and code_hash is not null and status in ('sending','pending')
       order by created_at desc limit 1`,
     [email, input.purpose],
   );
@@ -84,8 +84,8 @@ export async function requestEmailOtp(
     await sql.query(
     `insert into otp_challenges
       (id,user_id,destination,purpose,provider,status,expires_at,attempts,max_attempts,cooldown_until,code_hash)
-     values ($1,$2,$3,$4,'resend','sending',now()+($5 * interval '1 minute'),0,$6,now()+($7 * interval '1 second'),$8)`,
-    [challengeId, resolvedUserId, email, input.purpose, expiryMinutes, MAX_ATTEMPTS, RESEND_COOLDOWN_SECONDS, codeHash],
+     values ($1,$2,$3,$4,$9,'sending',now()+($5 * interval '1 minute'),0,$6,now()+($7 * interval '1 second'),$8)`,
+    [challengeId, resolvedUserId, email, input.purpose, expiryMinutes, MAX_ATTEMPTS, RESEND_COOLDOWN_SECONDS, codeHash, adapter.key],
     );
   } catch (error) {
     if (error instanceof Error && /duplicate|unique/i.test(error.message)) {
@@ -123,7 +123,7 @@ export async function verifyEmailOtp(input: { challengeId: string; code: string;
   const sql = await getSql();
   const claimed = await sql.query<{ id: string; code_hash: string; attempts: number; max_attempts: number; purpose: RequestEmailOtpInput["purpose"]; user_id: string | null; destination: string }>(
     `update otp_challenges set attempts=attempts+1,updated_at=now()
-      where id=$1 and provider='resend' and status='pending' and expires_at>now() and attempts<max_attempts
+      where id=$1 and code_hash is not null and status='pending' and expires_at>now() and attempts<max_attempts
         and ($2::text is null or user_id=$2) and ($3::text is null or purpose=$3)
       returning id,code_hash,attempts,max_attempts,purpose,user_id,destination`,
     [input.challengeId, input.userId ?? null, input.expectedPurpose ?? null],

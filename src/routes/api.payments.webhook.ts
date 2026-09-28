@@ -14,7 +14,7 @@ export const Route = createFileRoute("/api/payments/webhook")({
         // ambiguous/no-match signatures. Never trust a client-supplied provider as
         // authoritative routing information.
         const providerHint = request.headers.get("x-elemarket-provider") ?? url.searchParams.get("provider") ?? undefined;
-        const signature = request.headers.get("x-elemarket-signature") ?? request.headers.get("x-paystack-signature");
+        const signature = request.headers.get("x-elemarket-signature");
         try {
           const { enforceRateLimit } = await import("@/lib/security/rate-limit.server");
           await enforceRateLimit("payment-webhook-global", { windowSeconds: 60, maxRequests: 600 });
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/payments/webhook")({
         try { rawBody = await readBodyWithLimit(request, 1024 * 1024); }
         catch { return new Response("Payload too large", { status: 413 }); }
         try {
-          const result = await handlePaymentWebhook({ providerKey: providerHint, rawBody, signature });
+          const result = await handlePaymentWebhook({ providerKey: providerHint, rawBody, signature, headers: request.headers });
           return Response.json({ ok: true, result });
         } catch (error) {
           const limited = rateLimitResponse(error);
