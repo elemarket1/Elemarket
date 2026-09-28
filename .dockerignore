@@ -1,0 +1,13 @@
+.git
+node_modules
+.output
+.nitro
+.env
+.env.*
+*.log
+.tmp
+output
+coverage
+playwright-report
+test-results
+mobile

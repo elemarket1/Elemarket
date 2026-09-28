@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const root = new URL('../', import.meta.url).pathname;
+const migration = fs.readFileSync(`${root}migrations/0104_assisted_order_support.sql`, 'utf8');
+const support = fs.readFileSync(`${root}src/lib/support.functions.ts`, 'utf8');
+const admin = fs.readFileSync(`${root}src/lib/admin-support.functions.ts`, 'utf8');
+const checkout = fs.readFileSync(`${root}src/lib/market/checkout.ts`, 'utf8');
+const checkoutPage = fs.readFileSync(`${root}src/routes/checkout.tsx`, 'utf8');
+const supportPage = fs.readFileSync(`${root}src/routes/support.tsx`, 'utf8');
+
+assert.match(migration, /create table if not exists support_order_drafts/);
+assert.match(migration, /customer_id text not null references "user"\(id\)/);
+assert.match(migration, /created_by text not null references "user"\(id\)/);
+assert.match(migration, /select role into v_role from "user" where id=p_support_id/);
+assert.match(migration, /if v_role<>'admin' then raise exception 'support agent role required'/);
+assert.match(migration, /support_order_drafts_one_pending_per_conversation_uq/);
+assert.match(migration, /order_group_assisted_draft/);
+assert.match(migration, /app\.assisted_draft_id/);
+assert.match(migration, /v_draft\.customer_id<>new\.user_id/);
+assert.match(migration, /validate_assisted_order_matches_draft/);
+assert.match(migration, /assisted order was modified after customer review/);
+assert.match(migration, /status='checkout_started'/);
+assert.match(migration, /status='completed'/);
+assert.match(migration, /support_messages/);
+assert.doesNotMatch(migration, /card_number|cvv|cvc|pin|otp/i);
+
+assert.match(admin, /createAssistedOrderDraft/);
+assert.match(admin, /requireAdminCapability\("write_support", adminId, true\)/);
+assert.match(admin, /searchProductsForAssistedOrder/);
+assert.match(support, /getAssistedOrderDraft/);
+assert.match(support, /requireCustomerForUserId/);
+assert.match(checkout, /assistedDraftId/);
+assert.match(checkout, /set_config\('app\.assisted_draft_id'/);
+assert.match(checkoutPage, /getAssistedOrderDraft/);
+assert.match(checkoutPage, /Review the address, delivery quote and final total/);
+assert.match(checkoutPage, /assistedDraftId/);
+assert.match(supportPage, /Order prepared by ELEMARKET Support/);
+assert.match(supportPage, /Review & continue to payment/);
+assert.match(supportPage, /agent cannot pay on your behalf/);
+console.log('assisted-order support contracts passed');

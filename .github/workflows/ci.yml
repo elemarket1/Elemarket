@@ -1,0 +1,165 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: elemarket_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d elemarket_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/elemarket_ci
+      ELEMARKET_INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/elemarket_ci
+      RUN_DB_INTEGRATION: "1"
+      NODE_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Keep npm ci strict. If package.json and package-lock.json drift,
+      # CI must fail rather than silently rewriting the dependency graph.
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Dependency security audit
+        run: npm run security:deps
+
+      - name: Verify npm registry signatures and provenance
+        run: npm run security:signatures
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Apply PostgreSQL migrations
+        run: npm run db:migrate
+
+      - name: Contract and unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck generated routes
+        run: npm run typecheck
+
+      - name: Install browser for order regressions
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser order and authorization regressions
+        timeout-minutes: 6
+        env:
+          ELEMARKET_ENV: development
+          BETTER_AUTH_URL: http://localhost:8080
+          ELEMARKET_ALLOW_SYNTHETIC_SEED: "1"
+          ELEMARKET_BROWSER_FIXTURE: /tmp/elemarket-browser-fixture.json
+        run: |
+          export BETTER_AUTH_SECRET="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          node scripts/seed-security-browser.mjs
+          npm run dev > /tmp/elemarket-browser-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"; rm -f "$ELEMARKET_BROWSER_FIXTURE"' EXIT
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8080/ > /dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = 1
+          node scripts/order-navigation.browser.mjs --launch
+          node scripts/admin-orders.browser.mjs --launch
+      - name: Upload browser regression server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-regression-server-log
+          path: /tmp/elemarket-browser-server.log
+          if-no-files-found: ignore
+
+  postgres-concurrency:
+    name: PostgreSQL concurrency
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: elemarket_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d elemarket_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/elemarket_ci
+      ELEMARKET_INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/elemarket_ci
+      RUN_DB_INTEGRATION: "1"
+      NODE_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # This is intentionally npm ci as well. Both CI jobs must consume the
+      # exact committed lockfile; neither job is allowed to rewrite it.
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Apply PostgreSQL migrations
+        run: npm run db:migrate
+
+      - name: Run PostgreSQL concurrency tests
+        run: npm run test:integration:concurrency
+
+  production-container:
+    name: Production container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        run: docker build -t elemarket:candidate .
+      - name: Verify non-root image and fail-closed startup
+        run: |
+          test "$(docker inspect --format '{{.Config.User}}' elemarket:candidate)" = node
+          if docker run --rm elemarket:candidate; then
+            echo 'Container unexpectedly started without production configuration'
+            exit 1
+          fi

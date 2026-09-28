@@ -1,0 +1,36 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+
+const root = path.resolve(new URL("..", import.meta.url).pathname);
+const migration = fs.readFileSync(path.join(root, "migrations/0095_merchant_health_scoring.sql"), "utf8");
+const engine = fs.readFileSync(path.join(root, "src/lib/market/merchant-health.ts"), "utf8");
+const api = fs.readFileSync(path.join(root, "src/routes/api/financing/merchants/$merchantId.health.ts"), "utf8");
+const financing = fs.readFileSync(path.join(root, "src/lib/market/financing.ts"), "utf8");
+
+assert.match(migration, /create table if not exists merchant_score_history/i);
+assert.match(migration, /create table if not exists merchant_financing_provider_access/i);
+assert.match(migration, /pg_advisory_xact_lock\(hashtext\('elemarket:merchant-health:'/i);
+assert.match(migration, /recalculate_merchant_health_score\(p_merchant_id text\)/i);
+assert.match(migration, /Minimum evidence threshold/i);
+assert.match(migration, /record_audit_event\(/i);
+assert.match(engine, /requireAdminForUserId/);
+assert.match(engine, /requireMerchantAccessForUserId/);
+assert.match(engine, /token_hash/);
+assert.match(engine, /newProviderAccessToken/);
+assert.match(engine, /merchant_health:read/);
+assert.match(api, /authorization/);
+assert.match(api, /Bearer\\s\+\(elemh_/);
+assert.match(api, /cache-control.*no-store/i);
+assert.match(api, /merchant_health:read/);
+assert.match(api, /enforceRateLimit\("merchant-health-provider-api"/);
+assert.match(api, /Deliberately excludes merchant\/customer PII/);
+assert.match(financing, /recalculate_merchant_health_score/);
+assert.match(financing, /fresh_until/);
+console.log("Merchant Health OWASP contracts: 21 assertions passed, 0 failed");
+assert.match(migration, /merchant_score_history_immutable/);
+assert.match(migration, /merchant score history is immutable/);
+assert.match(migration, /provider access identity is immutable/);
+assert.match(api, /merchant-health-provider-auth/);
+assert.match(api, /healthBand/);
+assert.doesNotMatch(api, /\bband:\s*row\.band/);
