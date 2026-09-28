@@ -12,6 +12,7 @@ export function loadTypeScript(file, dependencies = {}) {
   const module = { exports: {} };
   const resolve = (id) => {
     if (Object.hasOwn(dependencies, id)) return dependencies[id];
+    if (id.startsWith('@/lib/providers/') && id.endsWith('.mjs')) return require(path.resolve('src', id.slice(2)));
     if (id.startsWith('.')) {
       const target = path.resolve(path.dirname(file), id);
       return loadTypeScript(`${target}.ts`, dependencies);

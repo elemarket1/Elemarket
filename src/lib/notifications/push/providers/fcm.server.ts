@@ -85,7 +85,7 @@ export class FcmPushAdapter implements PushProviderAdapter {
       },
     });
 
-    let lastError: Error & { status?: number; code?: string } | undefined;
+    let lastError: Error & { status?: number; code?: string; terminal?: boolean } | undefined;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
       const response = await fetch(url, {
         method: "POST",
@@ -100,9 +100,10 @@ export class FcmPushAdapter implements PushProviderAdapter {
       if (response.ok) return { accepted: true, providerId: payload?.name };
 
       const code = payload?.error?.details?.find((detail) => detail.errorCode)?.errorCode || payload?.error?.status;
-      const error = new Error(`FCM send failed (${payload?.error?.message || response.status})`) as Error & { status?: number; code?: string };
+      const error = new Error(`FCM send failed (${payload?.error?.message || response.status})`) as Error & { status?: number; code?: string; terminal?: boolean };
       error.status = response.status;
       error.code = code;
+      error.terminal = code === "UNREGISTERED" || code === "INVALID_ARGUMENT";
       lastError = error;
       const retryable = response.status === 429 || response.status >= 500;
       if (!retryable || attempt === MAX_RETRIES) throw error;

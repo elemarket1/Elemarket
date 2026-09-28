@@ -44,7 +44,8 @@ test("deep attack: provider checkout URLs are constrained before browser redirec
 
 test("deep attack: CSP provider connect destinations are deployment configurable", () => {
   const headers = read("../src/lib/security/headers.ts");
-  assert.match(headers, /ELEMARKET_CSP_CONNECT_SRC/);
+  assert.match(headers, /browserPolicy/);
+  assert.match(read("../src/lib/providers/browser-policy.mjs"), /ELEMARKET_CSP_CONNECT_SRC/);
 });
 
 test("deep attack: customer payment endpoints enforce bounded per-user request rates", () => {

@@ -49,7 +49,7 @@ test('Better Auth verification and password reset use the same email adapter', a
 });
 
 test('Resend webhook verifies Svix headers and records idempotently', async () => {
-  const source = await read('src/lib/auth/email/webhook.server.ts');
+  const source = await read('src/lib/auth/email/webhook.server.ts') + await read('src/lib/auth/email/providers/resend-webhook.server.ts');
   assert.match(source, /svix|signature/i);
   assert.match(source, /timingSafeEqual/);
   assert.match(source, /on conflict \(id\) do nothing/i);

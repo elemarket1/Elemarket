@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { browserPolicy } from "../src/lib/providers/browser-policy.mjs";
+import { validateProviderConfiguration } from "../src/lib/providers/catalog.mjs";
 const env = (key) => process.env[key]?.trim() || undefined;
 const explicitEnvironment = (env("ELEMARKET_ENV") || "").toLowerCase();
 const production = process.argv.includes("--require-shared") || explicitEnvironment === "production" || explicitEnvironment === "staging" || Boolean(env("VERCEL") || process.env.NODE_ENV === "production") || Boolean(env("DATABASE_URL"));
@@ -17,9 +19,7 @@ if (env("VERCEL") !== "1" && (env("ELEMARKET_TRUST_PROXY") !== "1" || env("ELEMA
   process.exit(1);
 }
 const required = ["DATABASE_URL", "REDIS_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "CRON_SECRET", "ELEMARKET_MERCHANT_DATA_ENCRYPTION_KEY", "ELEMARKET_ENTERPRISE_SYNC_SECRET"];
-required.push("ELEMARKET_PUBLIC_URL", "GEOAPIFY_API_KEY", "ARKESEL_API_KEY", "ARKESEL_OTP_SENDER_ID",
-  "CLOUDFLARE_R2_ACCOUNT_ID", "CLOUDFLARE_R2_ACCESS_KEY_ID", "CLOUDFLARE_R2_SECRET_ACCESS_KEY", "CLOUDFLARE_R2_BUCKET",
-  "ELEMARKET_PAYMENT_PROVIDERS", "ELEMARKET_SETTLEMENT_MODE");
+required.push("ELEMARKET_PUBLIC_URL");
 function fail(message) { console.error(`[startup] ${message}`); process.exit(1); }
 const pgSslMode = env("PG_SSL_MODE");
 let databaseHostname = "";
@@ -53,19 +53,6 @@ if (redisProtocol === "https:") {
   }
 } else if (redisProtocol !== "rediss:") {
   fail("REDIS_URL must use https://, rediss://, or Render internal redis://");
-}
-if (env("ELEMARKET_SETTLEMENT_MODE") !== "provider_direct_uncontrolled") fail("Configure provider_direct_uncontrolled explicitly: the installed adapters cannot guarantee settlement 24 hours after delivery");
-for (const [key, supported] of [["ELEMARKET_STORAGE_PROVIDER","r2"],["ELEMARKET_LOCATION_PROVIDER","geoapify"],["ELEMARKET_OTP_PROVIDER","arkesel"],["ELEMARKET_EMAIL_PROVIDER","resend"]]) {
-  if (env(key) && env(key) !== supported) fail(`${key}: unsupported production provider`);
-}
-const providers = (env("ELEMARKET_PAYMENT_PROVIDERS") ?? "").split(",").map(x=>x.trim()).filter(Boolean);
-for (const provider of providers) {
-  if (!/^[a-z0-9_-]{2,64}$/.test(provider) || provider.startsWith("preview")) fail("Invalid production payment provider");
-  const prefix = `ELEMARKET_PAYMENT_${provider.toUpperCase().replace(/[^A-Z0-9]+/g,"_")}`;
-  required.push(`${prefix}_DRIVER`, `${prefix}_SECRET`);
-  if (provider !== "paystack") required.push(`${prefix}_CHECKOUT_HOSTS`);
-  const driver = env(`${prefix}_DRIVER`);
-  if (driver !== "paystack") fail("Production payment contract verification currently supports the installed paystack driver only");
 }
 for (const key of ["BETTER_AUTH_URL", "ELEMARKET_PUBLIC_URL"]) {
   try { const url = new URL(env(key)); if (url.protocol !== "https:" || url.username || url.password || ["localhost","127.0.0.1","[::1]"].includes(url.hostname)) throw new Error(); }
@@ -123,16 +110,6 @@ if (env("VITE_AUTH_ENABLED") === "false") {
   process.exit(1);
 }
 
-const emailProvider = (env("ELEMARKET_EMAIL_PROVIDER") || "resend").toLowerCase();
-if (emailProvider === "resend") {
-  const emailRequired = ["RESEND_API_KEY", "RESEND_FROM_EMAIL", "RESEND_WEBHOOK_SECRET"];
-  const missingEmail = emailRequired.filter((key) => !env(key));
-  if (missingEmail.length) {
-    console.error(`[startup] Resend email provider requires: ${missingEmail.join(", ")}`);
-    process.exit(1);
-  }
-}
-
 if (env("ELEMARKET_REAL_API_MODE") === "1") {
   const publicUrl = env("ELEMARKET_PUBLIC_URL");
   if (!publicUrl) { console.error("[startup] real API mode requires ELEMARKET_PUBLIC_URL"); process.exit(1); }
@@ -141,18 +118,6 @@ if (env("ELEMARKET_REAL_API_MODE") === "1") {
 
 }
 
-const pushProvider = (env("ELEMARKET_PUSH_PROVIDER") || "fcm").toLowerCase();
-if (!["fcm", "disabled"].includes(pushProvider)) fail("Unsupported push provider");
-if (pushProvider === "fcm") {
-  const raw = env("FCM_SERVICE_ACCOUNT_JSON");
-  if (!raw) { console.error("[startup] FCM push provider requires FCM_SERVICE_ACCOUNT_JSON"); process.exit(1); }
-  try {
-    const sa = JSON.parse(raw);
-    if (!sa?.project_id || !sa?.client_email || !sa?.private_key) throw new Error("missing project_id/client_email/private_key");
-  } catch (error) {
-    console.error(`[startup] FCM_SERVICE_ACCOUNT_JSON is invalid: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
-  }
-}
+try { validateProviderConfiguration(process.env); browserPolicy(process.env); } catch (error) { fail(error.message); }
 
 console.log("[startup] production environment validation passed.");

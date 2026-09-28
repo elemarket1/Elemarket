@@ -36,6 +36,10 @@ PostgreSQL-backed integration verification:
 RUN_DB_INTEGRATION=1 npm run test:integration:concurrency
 ```
 
+## Provider configuration
+
+See [provider architecture and deployment requirements](docs/deployment/provider-architecture.md). Production requires a verified provider-controlled delivery/dispute settlement hold; the installed adapter does not implement this capability and production startup therefore fails closed. No live-production readiness is claimed.
+
 ## Production boundary
 
 Real payment, financing and delivery providers must be configured and contract-tested before production use. Regulated custody, credit decisions, KYC/KYB and other regulated functions remain with appropriately licensed providers unless ELEMARKET separately obtains the required authorization.
@@ -46,7 +50,7 @@ Education AI is intentionally outside this repository and will be developed as a
 
 ### Authentication email adapter
 
-Authentication email (password reset and email verification) and email OTP use the same provider-neutral server-side email adapter. The default production provider is Resend.
+Authentication email (password reset and email verification) and email OTP use the same provider-neutral server-side email adapter. Select the installed email adapter explicitly with `ELEMARKET_EMAIL_PROVIDER`; there is no implicit production email provider.
 
 ## Resend email OTP
 
@@ -90,6 +94,7 @@ Merchant onboarding uses a provider-neutral KYB interface. Fylings is the curren
 
 Server-only deployment variables:
 
+- `ELEMARKET_KYB_PROVIDER=fylings` (use `manual` for the existing administrator review workflow)
 - `FYLINGS_API_KEY=<server-only Fylings API key>`
 - `FYLINGS_BASE_URL=https://www.fylings.com` (optional; HTTPS required)
 

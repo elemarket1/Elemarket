@@ -1,3 +1,4 @@
+import { paymentDrivers } from "@/lib/providers/catalog.mjs";
 import { z } from "zod";
 import type { PaymentAdapterInput, PaymentAdapterResult, PaymentProviderAdapter, ParsedPaymentWebhook, VerifiedPayment, PaymentRefundResult } from "../payment";
 import { PaymentProviderError } from "@/lib/market/payment-errors";
@@ -50,6 +51,9 @@ function providerId(value: unknown): string | null {
 }
 
 export class PaystackPaymentAdapter implements PaymentProviderAdapter {
+  readonly capabilities = paymentDrivers.paystack.capabilities;
+  readonly checkoutHosts = paymentDrivers.paystack.checkoutHosts;
+  webhookSignature(headers: Headers): string | null { return headers.get("x-paystack-signature"); }
   readonly supportsIdempotentInitialization = true;
   constructor(private readonly secret: string, private readonly baseUrl = "https://api.paystack.co") {}
   initializationReference(attemptId: string): string { return attemptId.replace(/[^A-Za-z0-9\-.=]/g, "").slice(0, 100); }

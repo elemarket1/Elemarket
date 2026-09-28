@@ -17,9 +17,9 @@ test("enterprise admin mode preserves authenticated admin identity", () => {
   assert.match(admin, /admin_set_merchant_enterprise_mode\(\$1,\$2,\$3,\$4\)/);
 });
 
-test("provider registry keeps dynamic drivers explicitly allowlisted", () => {
-  assert.match(registry, /ELEMARKET_PAYMENT_ALLOWED_MODULES/);
-  assert.match(registry, /allowedModules\.includes\(moduleSpecifier\)/);
+test("provider registry permits only statically installed drivers", () => {
+  assert.match(registry, /Object.hasOwn\(builtinDrivers, driver\)/);
+  assert.doesNotMatch(registry, /import\(moduleSpecifier\)/);
 });
 
 test("payment server revalidates provider checkout URLs before returning them", () => {

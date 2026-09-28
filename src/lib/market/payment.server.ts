@@ -10,10 +10,10 @@ import { PaymentProviderError, PaymentWebhookError } from "@/lib/market/payment-
 
 export type PaymentStatus = "initiated" | "authorized" | "completed" | "failed" | "refunded";
 
-function validateProviderCheckoutUrl(value: string | undefined, providerKey: string): string | undefined {
+function validateProviderCheckoutUrl(value: string | undefined, providerKey: string, defaultHosts: readonly string[]): string | undefined {
   if (!value) return undefined;
   try {
-    if (value.startsWith("/")) {
+    if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) {
       if (getElemarketEnvironment() === "development" || getElemarketEnvironment() === "preview") return value;
       throw new Error("Provider checkout URL must be absolute HTTPS in shared environments");
     }
@@ -27,7 +27,6 @@ function validateProviderCheckoutUrl(value: string | undefined, providerKey: str
     }
     const envKey = `ELEMARKET_PAYMENT_${providerKey.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_CHECKOUT_HOSTS`;
     const configuredHosts = (process.env[envKey] ?? "").split(",").map((v) => v.trim().toLowerCase()).filter(Boolean);
-    const defaultHosts = providerKey.toLowerCase() === "paystack" ? ["checkout.paystack.com"] : [];
     const allowedHosts = configuredHosts.length ? configuredHosts : defaultHosts;
     if (!allowedHosts.includes(url.hostname.toLowerCase())) throw new Error("Provider checkout host is not approved");
     return url.toString();
@@ -61,6 +60,9 @@ export async function createExternalPaymentIntent(input: { paymentId: string; pr
   );
   if (!provider[0]) throw new Error("Payment provider is not configured for production");
 
+  const adapter = await getPaymentAdapter(normalizedProviderKey, provider[0].driver_key ?? undefined);
+  if (getElemarketEnvironment() === "production" && !adapter.capabilities.deliveryDisputeHold) throw new Error("Payment provider lacks required deliveryDisputeHold capability");
+  if (!adapter.capabilities.currencies.includes(payment.currency) || !adapter.capabilities.methods.includes(payment.method)) throw new Error("Payment provider does not support this currency/method");
   const attemptRows = await sql.query<{ result: { paymentId: string; attemptId: string; attemptNo: number; status: "initiated" | "pending" | "authorized"; existing?: boolean; providerReference?: string | null; checkoutUrl?: string | null } }>(
     `select create_payment_attempt($1,$2,$3,$4,$5::jsonb) as result`,
     [payment.payment_id, normalizedProviderKey, payment.amount, payment.currency, JSON.stringify({ configured: true })],
@@ -68,10 +70,9 @@ export async function createExternalPaymentIntent(input: { paymentId: string; pr
   const result = attemptRows[0]?.result;
   if (!result) throw new Error("Payment attempt could not be created");
   if (result.existing && result.providerReference && result.checkoutUrl) {
-    return { ...result, providerReference: result.providerReference, checkoutUrl: validateProviderCheckoutUrl(result.checkoutUrl, normalizedProviderKey) };
+    return { ...result, providerReference: result.providerReference, checkoutUrl: validateProviderCheckoutUrl(result.checkoutUrl, normalizedProviderKey, adapter.checkoutHosts) };
   }
-  const adapter = await getPaymentAdapter(normalizedProviderKey, provider[0].driver_key ?? undefined);
-  if (!adapter.supportsIdempotentInitialization) {
+  if (!adapter.capabilities.idempotentInitialization) {
     throw new Error("Payment provider does not support duplicate-safe initialization");
   }
   const expectedReference = adapter.initializationReference?.(result.attemptId);
@@ -94,12 +95,12 @@ export async function createExternalPaymentIntent(input: { paymentId: string; pr
   const customerEmail = customerRows[0]?.email?.trim();
   if (!customerEmail) throw new Error("Customer email is required for payment");
   const subaccountRows = await sql.query<{ provider_account_ref: string }>(`select provider_account_ref from merchant_payment_accounts where merchant_id=(select merchant_id from orders where id=$1) and provider_key=$2 and status='active' limit 1`, [payment.order_id,normalizedProviderKey]);
-  if ((provider[0].requires_merchant_account || provider[0].driver_key === "paystack") && !subaccountRows[0]?.provider_account_ref) throw new Error("Merchant provider account is not configured");
+  if ((provider[0].requires_merchant_account || adapter.capabilities.merchantAccount) && !subaccountRows[0]?.provider_account_ref) throw new Error("Merchant provider account is not configured");
   const publicUrl = env("ELEMARKET_PUBLIC_URL");
   const callbackUrl = publicUrl ? `${publicUrl.replace(/\/$/, "")}/payment/return?paymentId=${encodeURIComponent(result.paymentId)}` : undefined;
   const external = await adapter.createPayment({ paymentId:result.paymentId, attemptId:result.attemptId, amount:String(payment.amount), currency:payment.currency, method:payment.method, customerEmail, merchantSubaccount:subaccountRows[0]?.provider_account_ref, idempotencyKey: result.attemptId, callbackUrl });
   if (expectedReference && external.providerReference !== expectedReference) throw new Error("Provider initialization reference mismatch");
-  const safeCheckoutUrl = validateProviderCheckoutUrl(external.checkoutUrl, normalizedProviderKey);
+  const safeCheckoutUrl = validateProviderCheckoutUrl(external.checkoutUrl, normalizedProviderKey, adapter.checkoutHosts);
   const bound = await sql.query(`update payment_attempts set provider_reference=$1, checkout_url=$2, status=case when status in ('cancelled','completed','failed','authorized') then status else $3 end, metadata=$4::jsonb, initiation_token=null, initiation_expires_at=null, updated_at=now() where id=$5 and initiation_token=$6 returning id`, [external.providerReference, safeCheckoutUrl ?? null, external.status, JSON.stringify(external.metadata ?? {}), result.attemptId, claimToken]);
   if (!bound[0]) {
     // The lease was lost while the provider call was in flight. Do not mutate
@@ -113,7 +114,7 @@ export async function createExternalPaymentIntent(input: { paymentId: string; pr
 }
 
 
-export async function handlePaymentWebhook(input: { providerKey?: string; rawBody: string; signature: string | null }) {
+export async function handlePaymentWebhook(input: { providerKey?: string; rawBody: string; signature: string | null; headers?: Headers }) {
   if (input.rawBody.length > 1024 * 1024) {
     throw new PaymentWebhookError("Webhook payload too large", { status: 413, retryable: false });
   }
@@ -154,7 +155,7 @@ export async function handlePaymentWebhook(input: { providerKey?: string; rawBod
     const adapter = await getPaymentAdapter(row.provider_key, row.driver_key ?? undefined);
     if (!adapter.verifyWebhook || !adapter.parseWebhook) continue;
     try {
-      if (await adapter.verifyWebhook(input.rawBody, input.signature)) {
+      if (await adapter.verifyWebhook(input.rawBody, input.headers ? adapter.webhookSignature?.(input.headers) ?? input.signature : input.signature)) {
         verifiedProviders.push({ ...row, adapter });
       }
     } catch {

@@ -27,7 +27,7 @@ test("push devices are scoped to users and token hashes", () => {
 });
 
 test("FCM defaults are fail-closed in production", () => {
-  const source = read("scripts/validate-startup-env.mjs");
+  const source = read("src/lib/providers/catalog.mjs");
   assert.match(source, /ELEMARKET_PUSH_PROVIDER/);
   assert.match(source, /FCM_SERVICE_ACCOUNT_JSON/);
   assert.match(source, /project_id.*client_email.*private_key/);
@@ -35,8 +35,8 @@ test("FCM defaults are fail-closed in production", () => {
 
 test("push delivery disables terminally invalid device tokens", () => {
   const source = read("src/lib/notifications/push/push.server.ts");
-  assert.match(source, /UNREGISTERED/);
-  assert.match(source, /INVALID_ARGUMENT/);
+  assert.match(read("src/lib/notifications/push/providers/fcm.server.ts"), /UNREGISTERED/);
+  assert.match(source, /terminal/);
   assert.match(source, /disabled_at = case when \$3 then now\(\)/);
 });
 

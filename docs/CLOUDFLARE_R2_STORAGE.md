@@ -12,7 +12,7 @@ StorageProvider
    |
    +-- CloudflareR2StorageProvider
    |
-   +-- future S3/B2 adapter
+   +-- S3StorageProvider (configured HTTPS endpoint/region)
 ```
 
 No marketplace domain module should import the R2 adapter directly.
@@ -30,6 +30,8 @@ CLOUDFLARE_R2_BUCKET=<R2 bucket name>
 ```
 
 Never expose the access key or secret to the browser.
+
+For S3-compatible services, select `ELEMARKET_STORAGE_PROVIDER=s3` and configure `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`. `STORAGE_ENDPOINT` is an HTTPS origin; the bucket is added as a path. R2 credentials are then unused.
 
 ## Cloudflare setup
 

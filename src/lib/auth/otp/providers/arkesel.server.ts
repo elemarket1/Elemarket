@@ -59,13 +59,15 @@ export class ArkeselOtpAdapter implements OtpProviderAdapter {
   readonly key = "arkesel";
 
   async send(input: OtpGenerateInput): Promise<OtpGenerateResult> {
+    const senderId = input.senderId ?? process.env.ARKESEL_OTP_SENDER_ID?.trim();
+    if (!senderId || senderId.length > 11) throw new Error("Arkesel OTP sender ID is not configured");
     const payload = await post("generate", {
       expiry: input.expiryMinutes,
       length: input.length,
       medium: "sms",
-      message: input.message,
+      message: (input.message ?? process.env.ARKESEL_OTP_MESSAGE?.trim() ?? "Your ELEMARKET verification code is %otp_code%. It expires in %expiry% minutes."),
       number: input.number.replace(/^\+/, ""),
-      sender_id: input.senderId,
+      sender_id: senderId,
       type: "numeric",
     });
 

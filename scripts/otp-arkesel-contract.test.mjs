@@ -25,7 +25,7 @@ test("Arkesel adapter uses the documented OTP endpoints and server-side api-key"
 
 test("OTP provider selection remains deployment-configured", () => {
   assert.match(registry, /ELEMARKET_OTP_PROVIDER/);
-  assert.match(registry, /selected === "arkesel"/);
+  assert.match(registry, /arkesel: getArkeselOtpAdapter/);
 });
 
 test("OTP core enforces lifecycle controls", () => {

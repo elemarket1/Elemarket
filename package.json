@@ -22,7 +22,7 @@
     "validate:startup": "node scripts/validate-startup-env.mjs",
     "start": "node scripts/start.mjs",
     "validate:firebase": "node scripts/validate-firebase-client-env.mjs",
-    "build:production": "npm run validate:startup -- --require-shared && npm run validate:firebase && vite build",
+    "build:production": "npm run validate:firebase && vite build",
     "security:deps": "npm audit --audit-level=high",
     "security:signatures": "npm audit signatures",
     "security:ci": "npm run security:deps && npm run security:signatures",

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { readBodyWithLimit } from "@/lib/security/body.server";
-import { handleResendWebhook } from "@/lib/auth/email/webhook.server";
+import { handleEmailWebhook } from "@/lib/auth/email/webhook.server";
 import { enforceRateLimit, rateLimitResponse } from "@/lib/security/rate-limit.server";
 
 export const Route = createFileRoute("/api/email/webhook")({
@@ -17,11 +17,7 @@ export const Route = createFileRoute("/api/email/webhook")({
         catch { return new Response("Payload too large", { status: 413 }); }
         if (new TextEncoder().encode(rawBody).byteLength > 256_000) return new Response("Payload too large", { status: 413 });
         try {
-          const result = await handleResendWebhook(rawBody, {
-            id: request.headers.get("svix-id"),
-            timestamp: request.headers.get("svix-timestamp"),
-            signature: request.headers.get("svix-signature"),
-          });
+          const result = await handleEmailWebhook(rawBody, request.headers);
           return Response.json(result, { status: 200 });
         } catch (error) {
           const message = error instanceof Error ? error.message : "Webhook rejected";

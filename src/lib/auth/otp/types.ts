@@ -11,8 +11,8 @@ export type OtpGenerateInput = {
   number: string;
   expiryMinutes: number;
   length: number;
-  message: string;
-  senderId: string;
+  message?: string;
+  senderId?: string;
 };
 
 export type OtpGenerateResult = {

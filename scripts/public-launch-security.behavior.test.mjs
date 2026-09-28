@@ -357,6 +357,7 @@ test("refund provider failure or timeout is recorded as needs_attention, never a
       },
       "@/lib/market/adapters/registry": {
         getPaymentAdapter: async () => ({
+          capabilities: { refund: true },
           refundPayment: async () => {
             calls++;
             throw new Error(message);

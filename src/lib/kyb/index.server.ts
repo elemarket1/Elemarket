@@ -1,5 +1,5 @@
 import { getSql } from "@/lib/db";
-import { getKybProvider } from "./providers/fylings.server";
+import { getKybProvider } from "./registry.server";
 
 export async function runMerchantKyb(applicationId: string): Promise<{ configured: boolean; decision?: string }> {
   const provider = getKybProvider();

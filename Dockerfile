@@ -12,6 +12,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY --from=build --chown=node:node /app/.output ./.output
 COPY --chown=node:node scripts/start.mjs scripts/validate-startup-env.mjs scripts/validate-runtime-db.mjs scripts/postgres-config.mjs scripts/migrate.mjs scripts/migration-plan.mjs scripts/run-scheduled-job.mjs ./scripts/
+COPY --chown=node:node src/lib/providers ./src/lib/providers
 COPY --chown=node:node migrations ./migrations
 COPY --chown=node:node migrations.sha256.json ./
 USER node

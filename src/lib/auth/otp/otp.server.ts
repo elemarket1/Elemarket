@@ -18,17 +18,6 @@ function normalizePurpose(value: string): OtpPurpose {
   throw new Error("Invalid OTP purpose");
 }
 
-function senderId(): string {
-  const value = process.env.ARKESEL_OTP_SENDER_ID?.trim();
-  if (!value || value.length > 11) throw new Error("Arkesel OTP sender ID is not configured");
-  return value;
-}
-
-function messageTemplate(): string {
-  return process.env.ARKESEL_OTP_MESSAGE?.trim() ||
-    "Your ELEMARKET verification code is %otp_code%. It expires in %expiry% minutes.";
-}
-
 export type RequestOtpInput = {
   number: string;
   purpose: string;
@@ -99,8 +88,6 @@ export async function requestOtp(
       number,
       expiryMinutes,
       length: OTP_LENGTH,
-      message: messageTemplate(),
-      senderId: senderId(),
     });
 
     if (result.code !== "accepted") {

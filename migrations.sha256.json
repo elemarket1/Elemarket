@@ -133,5 +133,8 @@
   "0133_production_payment_boundaries.sql": "64be24f9f86d66bc3be7b921cf15ec1f8355f3ed0902505a12a00be54bb2860f",
   "0134_admin_totp_session_assurance.sql": "14263c5d9d8150e09b40eaa8769a53efb566b8c35b3b2647f39f834f35dfbfec",
   "0135_live_checkout_order_integrity.sql": "20a77d0161073d96ee81d16f980ef81178be1bf0a03460d004b0db54ebfc5c64",
-  "0136_admin_order_support_operations.sql": "e1891c9c9ae992111a73303e389bd41e956dd843e373710bd56c34ab86c440db"
+  "0136_admin_order_support_operations.sql": "e1891c9c9ae992111a73303e389bd41e956dd843e373710bd56c34ab86c440db",
+  "0137_provider_capability_boundaries.sql": "f57e5a122b9be7b1744e32adb9fffbd7fb7ac6cff1961988a6f67b4389431cc9",
+  "0138_push_provider_binding.sql": "3e79cb7c98c28341df2d9876f9ca4512908e26acac0bbfff13a6a265a60c3bbc",
+  "0139_withdrawal_delivered_status.sql": "f0c2d615000f566aa5ae9cd33af8a76110f01bc30dd4375dcc8e4609e117183e"
 }

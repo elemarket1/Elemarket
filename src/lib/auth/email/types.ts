@@ -22,5 +22,6 @@ export type EmailSendResult = {
 
 export interface EmailProviderAdapter {
   readonly key: string;
+  parseAuthenticatedWebhook?(payload: string, headers: Headers): Promise<{ id: string; type: string; emailId: string; recipient: string | null; subject: string | null; createdAt: string | null }>;
   send(input: EmailSendInput): Promise<EmailSendResult>;
 }

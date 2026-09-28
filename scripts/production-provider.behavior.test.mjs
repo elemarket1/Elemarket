@@ -33,7 +33,7 @@ test('registry selects the bound Paystack driver and refuses implicit generic fa
   assert.equal(await registry.getPaymentAdapter('provider-alias','paystack'),adapter);
   await assert.rejects(()=>registry.getPaymentAdapter('provider-alias'),/driver/);
 });
-const { GeoapifyLocationProvider }=loadTypeScript('src/lib/market/adapters/location.server.ts',{
+const { GeoapifyLocationProvider }=loadTypeScript('src/lib/market/adapters/providers/geoapify.server.ts',{
   '@/lib/db':{},'@/lib/env.server':{},'@/lib/security/rate-limit.server':{},
   '@/lib/security/body.server':loadTypeScript('src/lib/security/body.server.ts'),
 });

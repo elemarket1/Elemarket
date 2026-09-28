@@ -1,3 +1,5 @@
+import { readResponseBodyWithLimit } from "@/lib/security/body.server";
+import { assertPublicHttpsEndpoint } from "@/lib/security/ssrf.server";
 import type { KYBProvider, KybResult, KybVerifyInput } from "../provider";
 
 const DEFAULT_BASE_URL = "https://www.fylings.com";
@@ -52,6 +54,7 @@ export class FylingsAdapter implements KYBProvider {
         throw new Error("A business name or registration number is required for KYB");
       }
 
+      await assertPublicHttpsEndpoint(this.baseUrl);
       const response = await fetch(`${this.baseUrl}/api/v1/verify`, {
         method: "POST",
         headers: {
@@ -69,7 +72,7 @@ export class FylingsAdapter implements KYBProvider {
         throw new Error("KYB provider response is too large");
       }
 
-      const raw = await response.text();
+      const raw = await readResponseBodyWithLimit(response, MAX_RESPONSE_BYTES);
       if (new TextEncoder().encode(raw).byteLength > MAX_RESPONSE_BYTES) {
         throw new Error("KYB provider response is too large");
       }
@@ -126,9 +129,4 @@ export class FylingsAdapter implements KYBProvider {
       clearTimeout(timeout);
     }
   }
-}
-
-export function getKybProvider(): KYBProvider | null {
-  if (!env("FYLINGS_API_KEY")) return null;
-  return new FylingsAdapter();
 }

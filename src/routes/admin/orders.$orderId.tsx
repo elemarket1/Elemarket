@@ -111,7 +111,7 @@ function AdminOrderDetail() {
         </span>
         <p className="mt-3 text-sm text-market-muted">
           Payment collection, settlement and refunds are managed by the provider. ELEMARKET’s
-          24-hour eligibility policy does not guarantee a Paystack settlement hold.
+          24-hour eligibility policy does not guarantee a provider settlement hold.
         </p>
       </header>
       <nav aria-label="Order sections" className="flex flex-wrap gap-2">

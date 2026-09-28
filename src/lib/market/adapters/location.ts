@@ -43,3 +43,8 @@ export const reverseGeocode = createServerFn({ method: "POST" })
     const { reverseGeocodeServer } = await import("@/lib/market/adapters/location.server");
     return reverseGeocodeServer(data.lat, data.lon);
   });
+
+export const locationAttribution = createServerFn({ method: "GET" }).handler(async () => {
+  const { getLocationProvider } = await import("./location-registry.server");
+  return getLocationProvider().attribution;
+});

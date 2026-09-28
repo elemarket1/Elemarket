@@ -1,4 +1,6 @@
+import { browserPolicy } from "@/lib/providers/browser-policy.mjs";
 export function securityHeaders(options: { production: boolean; nonce?: string }): Record<string, string> {
+  const providers = browserPolicy();
   const csp = [
     "default-src 'self'",
     "base-uri 'self'",
@@ -6,11 +8,11 @@ export function securityHeaders(options: { production: boolean; nonce?: string }
     "form-action 'self'",
     "frame-ancestors 'none'",
     "img-src 'self' data: blob: https:",
-    "font-src 'self' data: https://fonts.gstatic.com",
-    "style-src 'self' https://fonts.googleapis.com",
+    "font-src 'self' data:",
+    "style-src 'self'",
     "style-src-attr 'unsafe-inline'",
-    `script-src 'self'${options.nonce ? ` 'nonce-${options.nonce}'` : ""} https://www.gstatic.com`,
-    `connect-src 'self' ${process.env.ELEMARKET_CSP_CONNECT_SRC ?? "https://api.paystack.co https://api.geoapify.com https://fcm.googleapis.com https://firebaseinstallations.googleapis.com https://securetoken.googleapis.com"}`,
+    `script-src 'self'${options.nonce ? ` 'nonce-${options.nonce}'` : ""} ${providers.script.join(" ")}`,
+    `connect-src 'self' ${providers.connect.join(" ")}`,
   ].join("; ");
   return {
     "Content-Security-Policy": csp,

@@ -33,7 +33,7 @@ test('payment adapters explicitly declare duplicate-safe initialization capabili
 
 test('payment initialization fails closed for providers without duplicate-safe initialization', () => {
   const s = read('src/lib/market/payment.server.ts');
-  assert.match(s, /supportsIdempotentInitialization/);
+  assert.match(s, /capabilities.idempotentInitialization/);
   assert.match(s, /does not support duplicate-safe initialization/);
   assert.match(s, /returning id/);
   assert.match(s, /Payment initiation lease lost before provider binding/);

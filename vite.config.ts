@@ -1,3 +1,4 @@
+import { browserPolicy } from "./src/lib/providers/browser-policy.mjs";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite";
@@ -22,7 +23,7 @@ function securityHeadersPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((_req, res, next) => {
         const headers = {
-          "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self'; img-src 'self' data: blob: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https://www.gstatic.com; connect-src 'self' https: ws: wss:",
+          "Content-Security-Policy": `default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self'; img-src 'self' data: blob: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' ${browserPolicy().script.join(" ")}; connect-src 'self' https: ws: wss:`,
           "Referrer-Policy": "strict-origin-when-cross-origin",
           "X-Content-Type-Options": "nosniff",
           "X-Frame-Options": "DENY",

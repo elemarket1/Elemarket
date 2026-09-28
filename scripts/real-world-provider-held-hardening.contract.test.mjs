@@ -32,7 +32,7 @@ test('provider refunds are idempotent by payment and provider reference', () => 
 });
 
 test('real provider webhook accepts signature headers while provider routing is resolved cryptographically', () => {
-  assert.match(webhook, /x-paystack-signature/);
+  assert.match(fs.readFileSync("src/lib/market/adapters/providers/paystack.ts", "utf8"), /x-paystack-signature/);
   assert.match(webhook, /providerHint/);
   assert.match(webhook, /handlePaymentWebhook/);
   const payment = fs.readFileSync('src/lib/market/payment.server.ts','utf8');

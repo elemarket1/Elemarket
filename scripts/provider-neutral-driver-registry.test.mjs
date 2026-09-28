@@ -8,7 +8,8 @@ const payment = fs.readFileSync('src/lib/market/payment.ts', 'utf8');
 test('driver registry has no vendor-specific imports or vendor selection branches', () => {
   assert.doesNotMatch(registry, /providers\/paystack|Paystack|Hubtel|Motito/i);
   assert.doesNotMatch(registry, /driver\s*===\s*["']paystack/i);
-  assert.match(registry, /ELEMARKET_PAYMENT_DRIVER_.*_MODULE/);
+  assert.match(registry, /Object.hasOwn\(builtinDrivers, driver\)/);
+  assert.doesNotMatch(registry, /import\(moduleSpecifier\)/);
 });
 
 test('provider-specific currency and verification rules remain inside the adapter', () => {

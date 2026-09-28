@@ -1,3 +1,5 @@
+import { locationAttribution } from "@/lib/market/adapters/location";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CreditCard, LockKeyhole, ShieldCheck, ShoppingBag, Truck } from "lucide-react";
@@ -25,6 +27,7 @@ function Checkout() {
 }
 
 function CheckoutForm() {
+  const attribution = useQuery({ queryKey: ["location-attribution"], queryFn: () => locationAttribution() });
   const [cart, setCart] = useState<CartLine[]>(readCart);
   const [assistedDraftId, setAssistedDraftId] = useState<string | null>(null);
   const [assistedDraftNotice, setAssistedDraftNotice] = useState<string | null>(null);
@@ -259,7 +262,7 @@ function CheckoutForm() {
                     </div>
                   ) : null}
                   {financingStatus && <p role="status" className="mt-3 rounded-xl border border-market-line bg-white p-3 text-xs font-semibold text-market-muted">{financingStatus}</p>}
-                  {!financingProviders.length && financingQuote && <div className="mt-3 rounded-xl border border-dashed border-market-line bg-white p-3 text-[11px] leading-5 text-market-muted"><b className="text-market-ink">PaySmall Small / BNPL:</b> this option appears only when an approved financing-provider integration is activated. Availability, amount, terms and approval always come from the provider.</div>}
+                  {!financingProviders.length && financingQuote && <div className="mt-3 rounded-xl border border-dashed border-market-line bg-white p-3 text-[11px] leading-5 text-market-muted"><b className="text-market-ink">Buy now, pay later:</b> this option appears only when an approved financing-provider integration is activated. Availability, amount, terms and approval always come from the provider.</div>}
                 </div>
               </div>
             </div>
@@ -314,7 +317,7 @@ function CheckoutForm() {
                 <span className="font-black">{formatGhs(deliveryTotal)}</span>
               </div>
             )}
-            <p className="mt-3 text-xs text-market-muted">Delivery is quoted separately and must be live, unexpired and tied to this address before an order is created.</p><p className="mt-2 text-[11px] text-market-muted">Location lookup powered by <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer" className="underline">Geoapify</a> and OpenStreetMap.</p>
+            <p className="mt-3 text-xs text-market-muted">Delivery is quoted separately and must be live, unexpired and tied to this address before an order is created.</p><p className="mt-2 text-[11px] text-market-muted">{attribution.data?.map((item, index) => <span key={item.href}>{index ? " and " : "Location lookup powered by "}<a href={item.href} target="_blank" rel="noreferrer" className="underline">{item.label}</a></span>)}</p>
             <div className="mt-5 flex items-center gap-2 text-xs font-bold"><LockKeyhole size={14} /> Protected checkout</div>
           </aside>
         </div>

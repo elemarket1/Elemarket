@@ -1,9 +1,8 @@
-import { env, isWorkspacePreview } from "@/lib/env.server";
 import { randomUUID } from "node:crypto";
 import { getSql } from "@/lib/db";
-import { CloudflareR2StorageProvider } from "./r2.server";
+import { getStorageProvider } from "./registry.server";
+export { getStorageProvider } from "./registry.server";
 import type { StoragePurpose, UploadPolicy } from "./provider";
-import type { StorageProvider } from "./provider";
 
 export const MAX_UPLOAD_BYTES = 560 * 1024;
 
@@ -22,13 +21,6 @@ const ALLOWED_TYPES: Record<StoragePurpose, readonly string[]> = {
   "refund-evidence": ["application/pdf", "image/jpeg", "image/png", "image/webp"],
   "order-attachment": ["application/pdf", "image/jpeg", "image/png", "image/webp"],
 };
-
-export function getStorageProvider(): StorageProvider {
-  const provider = (env("ELEMARKET_STORAGE_PROVIDER") || "r2").toLowerCase();
-  if (provider === "r2") return new CloudflareR2StorageProvider();
-  if (isWorkspacePreview()) throw new Error(`Storage provider '${provider}' is not configured for preview`);
-  throw new Error(`Unsupported storage provider '${provider}'`);
-}
 
 export function validateUploadPolicy(input: UploadPolicy): void {
   if (!Object.hasOwn(MAX_BYTES, input.purpose)) throw new Error("Unsupported storage purpose");

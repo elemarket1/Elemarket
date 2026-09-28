@@ -20,7 +20,7 @@ test('non-profile uploads require resource ownership context',()=>{
 });
 
 test('presigned uploads bind the exact Content-Length',()=>{
- const s=read('src/lib/storage/r2.server.ts');
+ const s=read('src/lib/storage/s3.server.ts');
  assert.match(s,/content-length/);
  assert.match(s,/input\.sizeBytes/);
  assert.match(s,/560 \* 1024/);
