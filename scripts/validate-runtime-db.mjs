@@ -50,18 +50,16 @@ try {
         payment: "disabled",
       }),
     );
-    return;
-  }
+  } else {
+    if (active.rows.length && !configured.size) {
+      throw new Error(
+        "Active payment providers exist in the database but ELEMARKET_PAYMENT_PROVIDERS is not configured",
+      );
+    }
 
-  if (active.rows.length && !configured.size) {
-    throw new Error(
-      "Active payment providers exist in the database but ELEMARKET_PAYMENT_PROVIDERS is not configured",
-    );
-  }
+    const providers = active;
 
-  const providers = active;
-
-  for (const p of providers.rows) {
+    for (const p of providers.rows) {
     const prefix = paymentPrefix(p.provider_key);
     const driver = paymentDriver(p.driver_key);
 
@@ -109,13 +107,14 @@ try {
     }
   }
 
-  console.log(
-    JSON.stringify({
-      event: "startup.database_validated",
-      payment: "enabled",
-      activePaymentProviders: providers.rows.map((p) => p.provider_key),
-    }),
-  );
+    console.log(
+      JSON.stringify({
+        event: "startup.database_validated",
+        payment: "enabled",
+        activePaymentProviders: providers.rows.map((p) => p.provider_key),
+      }),
+    );
+  }
 } finally {
   await pool.end();
 }
