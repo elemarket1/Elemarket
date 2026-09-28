@@ -171,7 +171,7 @@ integration('assisted checkout commits approved camelCase items and rejects chan
  }
 });
 
-integration('refund completion and another order charge share a consistent counter lock order',async()=>{
+integration('refund completion and another order charge are independent of shared telemetry locks',async()=>{
  const refund=await fixture(),charge=await fixture();
  for(const ids of [refund,charge]){
   await query("select create_payment_attempt($1,$2,100,'GHS','{}')",[ids.payment,ids.provider]);
@@ -183,21 +183,14 @@ integration('refund completion and another order charge share a consistent count
  const holder=await pool.connect(),completion=await pool.connect();let finishing;
  try{
   await holder.query('BEGIN');await holder.query("SET LOCAL statement_timeout='5s'");
-  // Force completion to wait at reservation observation before the second charge
-  // reaches payment observation. The former reverse ordering deadlocked here.
+  // Hold an increment open. Refund completion must finish before this transaction
+  // commits: telemetry cannot create a cross-order financial lock dependency.
   await holder.query("select increment_observability_counter('reservation.status_changed',1)");
-  const pid=(await completion.query('select pg_backend_pid() pid')).rows[0].pid;
+  await completion.query('BEGIN');await completion.query("SET LOCAL statement_timeout='2s'");
   finishing=completion.query("select * from persist_provider_refund_result($1,'processed','fixture-refund','{}')",[request.requestId]);
-  finishing.catch(()=>{});
-  let waiting=false;
-  for(let i=0;i<100;i++){
-   const row=(await query('select wait_event_type from pg_stat_activity where pid=$1',[pid]))[0];
-   if(row?.wait_event_type==='Lock'){waiting=true;break}
-   await new Promise(resolve=>setTimeout(resolve,10));
-  }
-  assert.equal(waiting,true,'completion reaches the forced counter lock');
+  await finishing;await completion.query('COMMIT');
   await holder.query("select apply_payment_webhook($1,$2,'charge.success',$3,'completed',100,'GHS',$4)",[charge.provider,charge.event,charge.payment,'d'.repeat(64)]);
   await holder.query('COMMIT');await finishing;
   assert.equal((await state(refund)).payment_status,'refunded');assert.equal((await state(charge)).order_status,'paid');
- }finally{await holder.query('ROLLBACK');await finishing?.catch(()=>{});holder.release();completion.release()}
+ }finally{await holder.query('ROLLBACK');await finishing?.catch(()=>{});await completion.query('ROLLBACK');holder.release();completion.release()}
 });

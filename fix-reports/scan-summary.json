@@ -1,0 +1,12 @@
+{
+  "files_scanned": 551,
+  "occurrences": 2449,
+  "categories": {
+    "SAFE CONFIGURATION": 1814,
+    "SAFE HISTORICAL MIGRATION": 58,
+    "SAFE SEED DATA": 3,
+    "SAFE ADAPTER CODE": 167,
+    "SAFE TEST": 407
+  },
+  "unclassified": []
+}

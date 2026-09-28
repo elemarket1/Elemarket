@@ -36,8 +36,7 @@ test('payment webhook retry classification is structured, not message-regex base
 test('provider transaction verification maps HTTP failures to explicit provider errors', () => {
   const generic = read('src/lib/market/adapters/payment.ts');
   const paystack = read('src/lib/market/adapters/providers/paystack.ts');
-  assert.match(generic, /PaymentProviderError/);
-  assert.match(generic, /response\.status/);
+  assert.doesNotMatch(generic, /class JsonHttpPaymentAdapter/);
   assert.match(paystack, /PaymentProviderError/);
   assert.match(paystack, /response\.status/);
 });

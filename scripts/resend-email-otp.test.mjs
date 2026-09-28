@@ -55,10 +55,10 @@ test('Resend webhook verifies Svix headers and records idempotently', async () =
   assert.match(source, /on conflict \(id\) do nothing/i);
 });
 
-test('generic adapters validate external responses at runtime', async () => {
-  const payment = await read('src/lib/market/adapters/payment.ts');
+test('registered adapters validate external responses at runtime', async () => {
+  const payment = await read('src/lib/market/adapters/providers/paystack.ts');
   const delivery = await read('src/lib/market/adapters/delivery.server.ts');
-  assert.match(payment, /z\.enum\(\["authorized", "completed", "failed", "refunded"\]\)/);
+  assert.match(payment, /webhookSchema.safeParse/);
   assert.match(delivery, /z\.object\(\{/);
   assert.match(delivery, /Delivery provider returned an expired quote/);
 });

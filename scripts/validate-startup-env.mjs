@@ -18,15 +18,14 @@ if (env("VERCEL") !== "1" && (env("ELEMARKET_TRUST_PROXY") !== "1" || env("ELEMA
   console.error("[startup] Trusted client-IP configuration is required: configure a sanitizing ingress, ELEMARKET_TRUST_PROXY=1, ELEMARKET_PROXY_OVERWRITES_FORWARDED_FOR=1, and BETTER_AUTH_IP_HEADER.");
   process.exit(1);
 }
-const required = ["DATABASE_URL", "REDIS_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "CRON_SECRET", "ELEMARKET_MERCHANT_DATA_ENCRYPTION_KEY", "ELEMARKET_ENTERPRISE_SYNC_SECRET"];
+const required = ["DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "CRON_SECRET", "ELEMARKET_MERCHANT_DATA_ENCRYPTION_KEY", "ELEMARKET_ENTERPRISE_SYNC_SECRET"];
 required.push("ELEMARKET_PUBLIC_URL");
 function fail(message) { console.error(`[startup] ${message}`); process.exit(1); }
 const pgSslMode = env("PG_SSL_MODE");
 let databaseHostname = "";
-try { databaseHostname = new URL(env("DATABASE_URL")).hostname; } catch { fail("DATABASE_URL must be a valid PostgreSQL URL"); }
-const runningOnRender = env("RENDER") === "true" || env("RENDER") === "1";
+try { const url = new URL(env("DATABASE_URL")); if (!["postgres:", "postgresql:"].includes(url.protocol)) throw new Error(); databaseHostname = url.hostname; } catch { fail("DATABASE_URL must be a valid PostgreSQL URL"); }
 const renderInternalPostgres = /^dpg-[a-z0-9][a-z0-9-]*$/i.test(databaseHostname);
-if (runningOnRender || renderInternalPostgres) {
+if (renderInternalPostgres) {
   if (!["require", "verify-full"].includes(pgSslMode ?? "")) {
     fail("Render internal PostgreSQL requires PG_SSL_MODE=require or verify-full; use require for the internal connection");
   }
@@ -37,9 +36,9 @@ const redisUrl = env("REDIS_URL");
 let redisProtocol = "";
 let redisHostname = "";
 try {
-  const parsedRedisUrl = new URL(redisUrl);
-  redisProtocol = parsedRedisUrl.protocol;
-  redisHostname = parsedRedisUrl.hostname;
+  const parsedRedisUrl = redisUrl ? new URL(redisUrl) : undefined;
+  redisProtocol = parsedRedisUrl?.protocol ?? "";
+  redisHostname = parsedRedisUrl?.hostname ?? "";
 } catch { fail("REDIS_URL must be a valid Redis or HTTPS URL"); }
 const isRenderInternalKeyValueHost = redisProtocol === "redis:" && /^red-[a-z0-9][a-z0-9-]*$/i.test(redisHostname);
 if (redisProtocol === "https:") {
@@ -48,10 +47,10 @@ if (redisProtocol === "https:") {
   // Render's private Key Value connection URL is redis://red-...:6379.
   // Render does not guarantee a public RENDER=true runtime variable for every
   // Docker deployment, so identify the documented private hostname form too.
-  if (!runningOnRender && !isRenderInternalKeyValueHost) {
+  if (!isRenderInternalKeyValueHost) {
     fail("redis:// connections are permitted only for Render private-network Key Value; use rediss:// for external native Redis");
   }
-} else if (redisProtocol !== "rediss:") {
+} else if (redisUrl && redisProtocol !== "rediss:") {
   fail("REDIS_URL must use https://, rediss://, or Render internal redis://");
 }
 for (const key of ["BETTER_AUTH_URL", "ELEMARKET_PUBLIC_URL"]) {

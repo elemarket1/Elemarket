@@ -61,7 +61,6 @@ export async function createExternalPaymentIntent(input: { paymentId: string; pr
   if (!provider[0]) throw new Error("Payment provider is not configured for production");
 
   const adapter = await getPaymentAdapter(normalizedProviderKey, provider[0].driver_key ?? undefined);
-  if (getElemarketEnvironment() === "production" && !adapter.capabilities.deliveryDisputeHold) throw new Error("Payment provider lacks required deliveryDisputeHold capability");
   if (!adapter.capabilities.currencies.includes(payment.currency) || !adapter.capabilities.methods.includes(payment.method)) throw new Error("Payment provider does not support this currency/method");
   const attemptRows = await sql.query<{ result: { paymentId: string; attemptId: string; attemptNo: number; status: "initiated" | "pending" | "authorized"; existing?: boolean; providerReference?: string | null; checkoutUrl?: string | null } }>(
     `select create_payment_attempt($1,$2,$3,$4,$5::jsonb) as result`,

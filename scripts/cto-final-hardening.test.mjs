@@ -25,7 +25,7 @@ test('storage migration makes failed remote deletion retryable', () => {
 test('payment adapters explicitly declare duplicate-safe initialization capability', () => {
   const s = read('src/lib/market/adapters/payment.ts');
   assert.match(s, /supportsIdempotentInitialization/);
-  assert.match(s, /JsonHttpPaymentAdapter[\s\S]*supportsIdempotentInitialization = false/);
+  assert.doesNotMatch(s, /JsonHttpPaymentAdapter/);
   assert.match(s, /PreviewPaymentAdapter[\s\S]*supportsIdempotentInitialization = true/);
   const paystack = read('src/lib/market/adapters/providers/paystack.ts');
   assert.match(paystack, /supportsIdempotentInitialization = true/);

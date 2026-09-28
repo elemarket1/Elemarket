@@ -1,3 +1,4 @@
+import { publicHttpsFetch } from "@/lib/security/ssrf.server";
 import { getSql } from "@/lib/db";
 import { structuredLog } from "@/lib/observability/logger.server";
 
@@ -40,10 +41,10 @@ export async function emitSecurityAlert(alert: SecurityAlert): Promise<void> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2500);
     try {
-      await fetch(webhook, {
+      await publicHttpsFetch(webhook, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ service: "elemarket", timestamp: new Date().toISOString(), ...alert }),
+        body: JSON.stringify({ service: "elemarket", timestamp: new Date().toISOString(), alertKey: alert.alertKey, severity: alert.severity, eventName: alert.eventName }),
         signal: controller.signal,
       });
     } finally {

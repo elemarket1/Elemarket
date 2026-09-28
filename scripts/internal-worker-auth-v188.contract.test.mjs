@@ -27,7 +27,8 @@ test("expensive internal cron jobs have bounded request-rate controls", () => {
 test("Vercel Cron transport accepts only the documented Bearer secret form", () => {
   assert.match(auth, /authorization/);
   assert.match(auth, /Bearer \${cronSecret\?\.trim\(\)}/);
-  for (const route of [order, webhook, cronExpire, cronSync]) assert.match(route, /process\.env\.CRON_SECRET\)/);
+  for (const route of [cronExpire, cronSync]) assert.match(route, /process\.env\.CRON_SECRET\)/);
+  for (const route of [order, webhook]) assert.doesNotMatch(route, /process\.env\.CRON_SECRET\)/);
   assert.match(auth, /vercel-cron\/1\.0/);
   assert.match(auth, /request\.method\.toUpperCase\(\) === "GET"/);
 });

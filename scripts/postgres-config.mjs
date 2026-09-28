@@ -9,8 +9,9 @@ export function postgresConfig(connectionString, env = process.env) {
   const sslMode = env.PG_SSL_MODE;
   const verifyFull = sslMode === 'verify-full';
   const parsedConnection = new URL(connectionString);
+  if (!['postgres:', 'postgresql:'].includes(parsedConnection.protocol)) throw new Error('DATABASE_URL must use PostgreSQL');
   const renderInternalPostgres = /^dpg-[a-z0-9][a-z0-9-]*$/i.test(parsedConnection.hostname);
-  const renderRequire = (runningOnRender || renderInternalPostgres) && sslMode === 'require';
+  const renderRequire = renderInternalPostgres && sslMode === 'require';
   if (shared && !verifyFull && !renderRequire) {
     throw new Error(runningOnRender
       ? 'Render shared PostgreSQL requires PG_SSL_MODE=require or verify-full'

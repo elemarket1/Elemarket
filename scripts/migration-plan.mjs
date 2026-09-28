@@ -44,3 +44,18 @@ export function pendingMigrations(paths, applied) {
     .sort((a, b) => a.name.localeCompare(b.name))
     .filter(({ name }) => !done.has(name));
 }
+
+/** Require an exact, uniquely ordered deployment manifest before touching the DB.
+ * @param {string[]} entries @param {Record<string,string>} manifest
+ */
+export function validateMigrationManifest(entries, manifest) {
+  const names = entries.filter(isMigrationFile);
+  if (!names.length || names.length !== Object.keys(manifest).length) throw new Error("Migration files and manifest do not match");
+  const prefixes = new Set();
+  for (const name of names) {
+    const match = /^(\d{4})_[a-z0-9_]+\.sql$/.exec(name);
+    if (!match || prefixes.has(match[1])) throw new Error("Invalid or duplicate migration number");
+    prefixes.add(match[1]);
+    if (!/^[a-f0-9]{64}$/.test(manifest[name] || "")) throw new Error("Missing migration checksum");
+  }
+}

@@ -66,6 +66,7 @@ test("non-Vercel proxy ignores spoofed platform header while genuine Vercel head
     delete process.env.VERCEL;
     delete process.env.REDIS_URL;
     const limiter = loadTypeScript("src/lib/security/rate-limit.server.ts", {
+      "@/lib/security/ssrf.server": { publicHttpsFetch: () => { throw new Error("Unexpected outbound request"); } },
       "@tanstack/react-start/server": { getRequest: () => request },
       "@/lib/db": {
         getSql: async () => ({

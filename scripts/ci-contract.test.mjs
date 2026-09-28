@@ -48,3 +48,10 @@ test("CI includes a real PostgreSQL concurrency integration job", () => {
   assert.match(workflow, /npm run test:integration:concurrency/);
   assert.match(workflow, /RUN_DB_INTEGRATION: "1"/);
 });
+
+test('runtime container includes the transitive provider-policy metadata and production build validation',()=>{
+ const docker=fs.readFileSync('Dockerfile','utf8');
+ assert.match(docker,/RUN npm run build:production/);
+ assert.match(docker,/COPY[^\n]*src\/lib\/notifications\/push\/providers\/fcm-browser\.mjs/);
+ assert.match(docker,/scripts\/runtime-db-policy\.mjs/);
+});

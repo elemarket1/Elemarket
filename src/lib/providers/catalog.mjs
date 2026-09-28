@@ -3,12 +3,13 @@ export const paymentDrivers = Object.freeze({
   paystack: Object.freeze({
     required: ['SECRET'], checkoutHosts: ['checkout.paystack.com'],
     capabilities: Object.freeze({ initialize: true, checkout: true, verify: true, webhook: true, refund: true,
-      idempotentInitialization: true, merchantAccount: true, deliveryDisputeHold: false,
+      idempotentInitialization: true, merchantAccount: true,
       currencies: ['GHS'], methods: ['mobile_money', 'card', 'bank_transfer'] }),
   }),
 });
 /** @type {Record<string, {selection: string, optional?: string, drivers: Record<string, {required: string[], capabilities: string[]}>}>} */
 export const components = {
+  search: { selection: 'ELEMARKET_SEARCH_PROVIDER', optional: 'postgres', drivers: { postgres: { required: [], capabilities: ['search'] }, typesense: { required: ['TYPESENSE_HOST','TYPESENSE_SEARCH_KEY'], capabilities: ['search'] } } },
   storage: { selection: 'ELEMARKET_STORAGE_PROVIDER', drivers: {
     s3: { required: ['STORAGE_ENDPOINT','STORAGE_REGION','STORAGE_BUCKET','STORAGE_ACCESS_KEY_ID','STORAGE_SECRET_ACCESS_KEY'], capabilities: ['privateObjects','signedUrls','conditionalUpload','delete','boundedRead'] },
     r2: { required: ['CLOUDFLARE_R2_ACCOUNT_ID','CLOUDFLARE_R2_ACCESS_KEY_ID','CLOUDFLARE_R2_SECRET_ACCESS_KEY','CLOUDFLARE_R2_BUCKET'], capabilities: ['privateObjects','signedUrls','conditionalUpload','delete','boundedRead'] },
@@ -49,11 +50,13 @@ function configuredOrigin(value, component, allowPath = false) {
 }
 /** @param {Record<string,string|undefined>} [environment] */
 export function validateProviderConfiguration(environment = process.env) {
+  if (!['production', 'staging', 'development', 'preview'].includes(environment.ELEMARKET_ENV || '')) throw new Error('ELEMARKET_ENV must be a canonical environment identifier');
   for (const component of Object.keys(components)) {
     const selected = selectedProvider(component, environment);
     const missing = selected.required.filter(key => !environment[key]?.trim());
     if (missing.length) throw new Error(`${component} provider '${selected.key}': missing configuration ${missing.join(', ')}`);
   }
+  if (selectedProvider('search', environment).key === 'typesense') configuredOrigin(environment.TYPESENSE_HOST || '', 'search provider typesense');
   const storage = selectedProvider('storage', environment).key;
   if (storage === 's3') {
     configuredOrigin(environment.STORAGE_ENDPOINT || '', 'storage provider s3');
@@ -89,11 +92,8 @@ export function validateProviderConfiguration(environment = process.env) {
     const driver = paymentDriver(driverKey);
     const missing = driver.required.map(suffix => `${prefix}_${suffix}`).filter(name => !environment[name]?.trim());
     if (missing.length) throw new Error(`payment provider '${key}': missing configuration ${missing.join(', ')}`);
-    if (environment.ELEMARKET_ENV === 'production' && !driver.capabilities.deliveryDisputeHold)
-      throw new Error(`payment provider '${key}': required capability deliveryDisputeHold (delivered + 24 hours without dispute) is unavailable`);
   }
-  if (environment.ELEMARKET_ENV === 'production' && environment.ELEMARKET_SETTLEMENT_MODE !== 'provider_delivery_hold')
-    throw new Error('payment: required settlement mode provider_delivery_hold');
-  if (environment.ELEMARKET_ENV === 'staging' && !['provider_delivery_hold','provider_direct_uncontrolled'].includes(environment.ELEMARKET_SETTLEMENT_MODE || ''))
-    throw new Error('payment: staging requires an explicit settlement mode');
+  // Provider-neutral settlement: the selected payment driver must only satisfy
+  // the capabilities it actually implements. Delivery + 24h/no-dispute is an
+  // ELEMARKET merchant-withdrawal policy enforced server-side, not a provider capability.
 }

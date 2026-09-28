@@ -9,15 +9,15 @@ test('ops foundation has durable observability and shared infrastructure gates',
   assert.match(fs.readFileSync('src/lib/observability/logger.server.ts','utf8'),/record_observability_event/);
 });
 test('external payment adapter is real HTTP boundary and validates response',()=>{
-  const s=fs.readFileSync('src/lib/market/adapters/payment.ts','utf8');
+  const s=fs.readFileSync('src/lib/market/adapters/providers/paystack.ts','utf8');
   assert.match(s,/fetch\(/); assert.match(s,/providerReference/); assert.match(s,/AbortSignal\.timeout/);
 });
 test('delivery adapter is real HTTP boundary and validates quote response',()=>{
   const s=fs.readFileSync('src/lib/market/adapters/delivery.server.ts','utf8');
-  assert.match(s,/fetch\(/); assert.match(s,/quoteId/); assert.match(s,/expiresAt/);
+  assert.match(s,/publicHttpsFetch\(/); assert.match(s,/quoteId/); assert.match(s,/expiresAt/);
 });
 test('search has Typesense with Postgres fallback',()=>{
-  const s=fs.readFileSync('src/lib/market/search.server.ts','utf8');
+  const s=fs.readFileSync('src/lib/market/search.server.ts','utf8')+fs.readFileSync('src/lib/market/adapters/search-registry.server.ts','utf8');
   assert.match(s,/TYPESENSE_HOST/); assert.match(s,/source: "postgres"/);
 });
 test('merchant and admin dashboards are server role gated',()=>{
@@ -52,7 +52,7 @@ test("production startup validates durable infrastructure and auth secret",()=>{
 });
 
 test("payment adapter sends an idempotency key and webhook has replay defenses",()=>{
-  const adapter=fs.readFileSync("src/lib/market/adapters/payment.ts","utf8");
+  const adapter=fs.readFileSync("src/lib/market/adapters/providers/paystack.ts","utf8");
   const payment=fs.readFileSync("src/lib/market/payment.server.ts","utf8");
   assert.match(adapter,/idempotency-key/);
   assert.match(payment,/idempotencyKey: result\.attemptId/);

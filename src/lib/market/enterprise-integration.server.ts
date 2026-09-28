@@ -1,10 +1,8 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { lookup } from "node:dns/promises";
-import { request as httpsRequest } from "node:https";
 import { getSql } from "@/lib/db";
 import { decryptMerchantSensitiveData, encryptMerchantSensitiveData } from "@/lib/security/merchant-sensitive.server";
 import { pinnedGet, syncEnterpriseCatalog } from "@/lib/market/enterprise-catalog.server";
-import { assertPublicHttpsEndpoint, isPrivateOrReservedIp } from "@/lib/security/ssrf.server";
+import { assertPublicHttpsEndpoint, publicHttpsFetch } from "@/lib/security/ssrf.server";
 import type { JsonObject } from "@/lib/db-types";
 
 export async function testEnterpriseConnection(input: { merchantId: string }) {
@@ -159,26 +157,8 @@ export async function claimEnterpriseOrderOutbox(limit = 50) {
 }
 
 async function pinnedPost(url: URL, headers: Headers, body: string): Promise<{ status: number; response: string }> {
-  const addresses = await lookup(url.hostname, { all: true, verbatim: true });
-  const publicAddresses = addresses.map(a => a.address).filter(a => !isPrivateOrReservedIp(a));
-  if (!publicAddresses.length) throw new Error("Enterprise order endpoint does not resolve to a public address");
-  const address = publicAddresses[0];
-  return await new Promise((resolve, reject) => {
-    const req = httpsRequest({
-      protocol: "https:", hostname: address, port: 443, path: `${url.pathname}${url.search}`, method: "POST",
-      servername: url.hostname, headers: { ...Object.fromEntries(headers.entries()), host: url.hostname, "content-length": Buffer.byteLength(body) },
-      lookup: (_host, _opts, cb) => cb(null, address, address.includes(":") ? 6 : 4), timeout: 15_000,
-    }, res => {
-      const chunks: Buffer[] = [];
-      let total = 0;
-      res.on("data", chunk => { total += Buffer.byteLength(chunk); if (total > 2 * 1024 * 1024) { req.destroy(new Error("Enterprise order response too large")); return; } chunks.push(Buffer.from(chunk)); });
-      res.on("end", () => resolve({ status: res.statusCode ?? 0, response: Buffer.concat(chunks).toString("utf8") }));
-      res.on("error", reject);
-    });
-    req.on("timeout", () => req.destroy(new Error("Enterprise order endpoint timed out")));
-    req.on("error", reject);
-    req.end(body);
-  });
+  const result = await publicHttpsFetch(url, { method: "POST", headers, body, maxBytes: 2 * 1024 * 1024 });
+  return { status: result.status, response: await result.text() };
 }
 
 export async function deliverEnterpriseOrderOutbox(limit = 25) {

@@ -90,3 +90,10 @@ test("the copy check reads both files and catches an edit", () => {
   const drifted = authSchemaCopy(root);
   assert.notEqual(drifted.copy, drifted.source);
 });
+
+test('deployment manifest detects missing, duplicate and untracked migration files', async () => {
+  const {validateMigrationManifest}=await import('./migration-plan.mjs');
+  const hash='a'.repeat(64);
+  assert.doesNotThrow(()=>validateMigrationManifest(['0001_a.sql','auth'],{'0001_a.sql':hash}));
+  for(const [files,manifest] of [[[],{}],[['0001_a.sql'],{'0001_a.sql':hash,'0002_b.sql':hash}],[['0001_a.sql','0001_b.sql'],{'0001_a.sql':hash,'0001_b.sql':hash}],[['0001_a.sql'],{}]]) assert.throws(()=>validateMigrationManifest(files,manifest));
+});

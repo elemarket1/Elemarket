@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { request as httpsRequest } from "node:https";
 
 function ipv4ToInt(ip: string): number {
   const parts = ip.split(".").map(Number);
@@ -13,7 +14,7 @@ function privateIpv4(ip: string): boolean {
   const ranges: ReadonlyArray<readonly [string, number]> = [
     ["0.0.0.0",8],["10.0.0.0",8],["100.64.0.0",10],["127.0.0.0",8],["169.254.0.0",16],
     ["172.16.0.0",12],["192.0.0.0",24],["192.0.2.0",24],["192.168.0.0",16],
-    ["198.18.0.0",15],["198.51.100.0",24],["203.0.113.0",24],["224.0.0.0",4],["240.0.0.0",4],
+    ["192.88.99.0",24],["198.18.0.0",15],["198.51.100.0",24],["203.0.113.0",24],["224.0.0.0",4],["240.0.0.0",4],
   ];
   return ranges.some(([network, prefix]) => inCidr4(ip, network, prefix));
 }
@@ -56,6 +57,9 @@ function privateIpv6(ip: string): boolean {
   if ((first & 0xfe00) === 0xfc00) return true; // fc00::/7
   if ((first & 0xffc0) === 0xfe80) return true; // fe80::/10
   if ((first & 0xff00) === 0xff00) return true; // ff00::/8
+  // Protocol assignments and documentation are not generic provider destinations.
+  if (first === 0x2001 && groups[1] < 0x0200) return true;
+  if (first === 0x3fff && (groups[1] & 0xf000) === 0) return true;
   // Documentation / benchmarking / deprecated transition ranges.
   if (ipv6Prefix(groups, 32) === 0x20010db8n) return true; // 2001:db8::/32
   if (ipv6Prefix(groups, 96) === 0x64ff9bn) {
@@ -65,9 +69,9 @@ function privateIpv6(ip: string): boolean {
 
   if (ipv6Prefix(groups, 48) === 0x200100000002n) return true; // 2001:2::/48
   if (ipv6Prefix(groups, 32) === 0x20010000n) return true; // 2001:0000::/32 (Teredo)
-  // 6to4 embeds an IPv4 address in groups 2-3; block it when the embedded IPv4 is special.
+  // 6to4 embeds an IPv4 address in groups 1-2 (zero-based); block it when the embedded IPv4 is special.
   if (ipv6Prefix(groups, 16) === 0x2002n) {
-    const embedded = `${groups[2] >> 8}.${groups[2] & 255}.${groups[3] >> 8}.${groups[3] & 255}`;
+    const embedded = `${groups[1] >> 8}.${groups[1] & 255}.${groups[2] >> 8}.${groups[2] & 255}`;
     if (privateIpv4(embedded)) return true;
   }
   // IPv4-compatible and IPv4-mapped IPv6 addresses inherit IPv4 reachability semantics.
@@ -79,6 +83,8 @@ function privateIpv6(ip: string): boolean {
     const embedded = `${groups[6] >> 8}.${groups[6] & 255}.${groups[7] >> 8}.${groups[7] & 255}`;
     if (privateIpv4(embedded)) return true;
   }
+  // Only globally routed unicast or explicitly checked IPv4 translations.
+  if ((first & 0xe000) !== 0x2000 && ipv6Prefix(groups, 96) !== 0x64ff9bn && !(groups.slice(0, 5).every(g => g === 0) && [0, 0xffff].includes(groups[5]))) return true;
   return false;
 }
 export function isPrivateOrReservedIp(ip: string): boolean {
@@ -87,18 +93,81 @@ export function isPrivateOrReservedIp(ip: string): boolean {
 }
 
 /** Validate the endpoint and every DNS result before a server-side fetch. */
-export async function assertPublicHttpsEndpoint(input: string): Promise<URL> {
+async function publicEndpoint(input: string) {
   const url = new URL(input);
   if (url.protocol !== "https:") throw new Error("Endpoint must use HTTPS");
   if (url.username || url.password) throw new Error("Endpoint credentials are not allowed");
   if (url.port && url.port !== "443") throw new Error("Non-standard HTTPS ports are not allowed");
   const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || isPrivateOrReservedIp(host)) {
+  if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || (isIP(host) !== 0 && isPrivateOrReservedIp(host))) {
     throw new Error("Endpoint targets a private or reserved network");
   }
   const addresses = await lookup(host, { all: true, verbatim: true });
-  if (!addresses.length || addresses.some(({ address }) => isPrivateOrReservedIp(address))) {
+  if (!addresses.length || addresses.some(({ address }) => !isIP(address) || isPrivateOrReservedIp(address))) {
     throw new Error("Endpoint resolves to a private or reserved network");
   }
-  return url;
+  return { url, addresses };
+}
+
+/** Configuration preflight; requests must use publicHttpsFetch to pin the connection. */
+export async function assertPublicHttpsEndpoint(input: string): Promise<URL> {
+  return (await publicEndpoint(input)).url;
+}
+
+/** Bounded HTTPS transport. DNS is resolved once, validated, and pinned for TLS. */
+export async function publicHttpsFetch(input: string | URL, options: {
+  method?: string; headers?: HeadersInit; body?: string; signal?: AbortSignal;
+  redirect?: "error"; maxBytes?: number;
+} = {}): Promise<Response> {
+  const signal = AbortSignal.any([AbortSignal.timeout(15_000), ...(options.signal ? [options.signal] : [])]);
+  signal.throwIfAborted();
+  // Bound the DNS wait as well as the socket; never include credentials/URLs in errors.
+  const { url, addresses } = await new Promise<Awaited<ReturnType<typeof publicEndpoint>>>((resolve, reject) => {
+    const abort = () => reject(new Error("Outbound request aborted"));
+    signal.addEventListener("abort", abort, { once: true });
+    publicEndpoint(String(input)).then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+  signal.throwIfAborted();
+  const maxBytes = options.maxBytes ?? 2 * 1024 * 1024;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 10 * 1024 * 1024) throw new Error("Invalid outbound response limit");
+  const headers = new Headers(options.headers);
+  headers.set("host", url.host);
+  headers.set("accept-encoding", "identity");
+  const address = addresses[0];
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest(url, {
+      method: options.method ?? "GET", headers: Object.fromEntries(headers), signal,
+      agent: false, rejectUnauthorized: true,
+      // Preserve URL hostname for Host, SNI and certificate verification; no second DNS lookup.
+      lookup: (_host, lookupOptions, callback) => {
+        if (lookupOptions.all) callback(null, [address]);
+        else callback(null, address.address, address.family);
+      },
+    }, res => {
+      const fail = (message: string) => { res.destroy(); req.destroy(); reject(new Error(message)); };
+      const status = res.statusCode ?? 502;
+      if (status >= 300 && status < 400) { fail("Outbound redirects are not allowed"); return; }
+      if (res.headers['content-encoding'] && res.headers['content-encoding'] !== 'identity') { fail("Unexpected outbound response encoding"); return; }
+      const chunks: Buffer[] = [];
+      let size = 0;
+      res.on("data", (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > maxBytes) { fail("Outbound response exceeds size limit"); return; }
+        chunks.push(chunk);
+      });
+      res.on("aborted", () => reject(new Error("Outbound response interrupted")));
+      res.on("error", () => reject(new Error("Outbound response failed")));
+      res.on("end", () => {
+        if (res.destroyed && !res.complete) return;
+        const responseHeaders = new Headers();
+        for (const [key, value] of Object.entries(res.headers)) {
+          if (value !== undefined) responseHeaders.set(key, Array.isArray(value) ? value.join(", ") : value);
+        }
+        try { resolve(new Response(options.method === "HEAD" || [204, 205, 304].includes(status) ? null : Buffer.concat(chunks), { status, headers: responseHeaders })); }
+        catch { reject(new Error("Invalid outbound response")); }
+      });
+    });
+    req.on("error", () => reject(new Error("Outbound HTTPS request failed")));
+    req.end(options.body);
+  });
 }

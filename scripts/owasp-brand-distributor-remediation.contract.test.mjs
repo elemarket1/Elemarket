@@ -89,7 +89,8 @@ test("queued order delivery is merchant/order scoped and externally idempotent",
 test("outbound integration failures are redacted and retried with jitter",()=>{
   assert.match(server,/\[redacted\]/);
   assert.match(server,/floor\(random\(\)\*10\)/);
-  assert.match(server,/response too large|Integration response too large/i);
+  assert.match(server,/publicHttpsFetch/);
+  assert.match(ssrf,/Outbound response exceeds size limit/);
 });
 
 test("brand worker uses the shared replay-protected authentication boundary",()=>{
@@ -101,7 +102,8 @@ test("SSRF boundary rejects credentials/private targets and pins DNS",()=>{
   assert.match(ssrf,/url\.username \|\| url\.password/);
   assert.match(ssrf,/isPrivateOrReservedIp/);
   assert.match(server,/pinnedPost/);
-  assert.match(server,/lookup\(url\.hostname/);
+  assert.match(server,/publicHttpsFetch/);
+  assert.match(ssrf,/lookup:/);
 });
 
 test("offer ownership is enforced at the database boundary",()=>{

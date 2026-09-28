@@ -2,7 +2,7 @@
 
 ## Production blocker: settlement contract
 
-ELEMARKET never holds customer funds. A merchant may withdraw only from a delivered sale after 24 hours without a customer dispute. The installed payment adapter cannot control that delivery-relative settlement window. Production startup and payment initialization therefore reject its missing `deliveryDisputeHold` capability. No configuration flag can grant this capability. The existing `provider_direct_uncontrolled` mode is accepted only for staging tests without customer funds.
+ELEMARKET never holds customer funds. A merchant may withdraw only from a delivered sale after 24 hours without a customer dispute. That is an ELEMARKET server-side eligibility rule, not a payment-provider capability. Payment adapters remain provider-neutral and cannot gain settlement guarantees from configuration flags.
 
 A real provider-controlled hold/release contract is required before production. It must cover per-sale delivery notification, dispute freezes, idempotent release, concurrent dispute/release ordering, provider dashboard withdrawals, webhook authentication/replay handling, and reconciliation of unknown outcomes. SQL eligibility alone cannot control money at a provider. Customer-facing release remains blocked until this contract is implemented and verified. Historical escrow tables do not provide custody; active release functions remain disabled.
 

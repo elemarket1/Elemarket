@@ -39,7 +39,7 @@ export async function readResponseBodyWithLimit(response: Response, maxBytes: nu
       const { done, value } = await reader.read();
       if (done) break;
       total += value.byteLength;
-      if (total > maxBytes) throw new Error("Response too large");
+      if (total > maxBytes) { await reader.cancel(); throw new Error("Response too large"); }
       chunks.push(value);
     }
   } finally {

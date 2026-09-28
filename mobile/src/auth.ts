@@ -7,10 +7,10 @@ function assertSecureBaseUrl() {
   if (!BASE_URL) throw new Error("EXPO_PUBLIC_API_BASE_URL is required");
   const url = new URL(BASE_URL);
   const isLocalDev = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
-  if (url.protocol !== "https:" && !isLocalDev) {
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && isLocalDev && __DEV__)) {
     throw new Error("ELEMARKET mobile API must use HTTPS");
   }
-  if (!isLocalDev && url.username) throw new Error("ELEMARKET mobile API URL must not contain credentials");
+  if (url.username || url.password) throw new Error("ELEMARKET mobile API URL must not contain credentials");
   if (!isLocalDev && url.port && url.port !== "443") throw new Error("ELEMARKET mobile API must use HTTPS port 443");
   return url;
 }
@@ -21,14 +21,16 @@ const REQUEST_TIMEOUT_MS = 15_000;
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const abort = () => controller.abort();
   if (init.signal) {
     if (init.signal.aborted) controller.abort();
-    else init.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    else init.signal.addEventListener("abort", abort, { once: true });
   }
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    return await fetch(input, { ...init, redirect: "error", signal: controller.signal });
   } finally {
     clearTimeout(timer);
+    init.signal?.removeEventListener("abort", abort);
   }
 }
 

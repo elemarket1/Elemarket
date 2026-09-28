@@ -1,5 +1,5 @@
 import { readResponseBodyWithLimit } from "@/lib/security/body.server";
-import { assertPublicHttpsEndpoint } from "@/lib/security/ssrf.server";
+import { publicHttpsFetch } from "@/lib/security/ssrf.server";
 import type { KYBProvider, KybResult, KybVerifyInput } from "../provider";
 
 const DEFAULT_BASE_URL = "https://www.fylings.com";
@@ -54,8 +54,7 @@ export class FylingsAdapter implements KYBProvider {
         throw new Error("A business name or registration number is required for KYB");
       }
 
-      await assertPublicHttpsEndpoint(this.baseUrl);
-      const response = await fetch(`${this.baseUrl}/api/v1/verify`, {
+      const response = await publicHttpsFetch(`${this.baseUrl}/api/v1/verify`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.apiKey}`,

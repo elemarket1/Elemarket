@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 const root=process.cwd();
-const search=fs.readFileSync(path.join(root,'src','lib','market','search.server.ts'),'utf8');
+const search=fs.readFileSync(path.join(root,'src','lib','market','search.server.ts'),'utf8')+fs.readFileSync(path.join(root,'src','lib','market','adapters','providers','typesense.server.ts'),'utf8');
 const route=fs.readFileSync(path.join(root,'src','routes','api.search.ts'),'utf8');
 const migration=fs.readFileSync(path.join(root,'migrations','0113_advanced_search_v2.sql'),'utf8')+'\n'+fs.readFileSync(path.join(root,'migrations','0114_cto_release_hardening.sql'),'utf8');
 
@@ -58,9 +58,9 @@ test('search v2 keeps Typesense filter/sort/cursor semantics aligned with the pu
   assert.match(search,/listing_type/);
   assert.match(search,/condition/);
   assert.match(search,/sort_by/);
-  assert.match(search,/backend: "typesense"/);
-  assert.match(search,/page: page \+ 1/);
-  assert.match(search,/appliedFilters: \{ category: input\.category/);
+  assert.match(search,/backend: provider.key/);
+  assert.match(search,/page: providerPage \+ 1/);
+  assert.match(search,/appliedFilters: JSON.parse\(fingerprint\)/);
 });
 
 test('search analytics do not retain arbitrary normalized query text',()=>{

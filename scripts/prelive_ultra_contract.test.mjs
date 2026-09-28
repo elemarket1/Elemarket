@@ -10,7 +10,7 @@ test('checkout idempotency replay returns paymentId', () => {
 });
 
 test('Paystack adapter sends provider idempotency key', () => {
-  const s = read('src/lib/market/adapters/payment.ts');
+  const s = read('src/lib/market/adapters/providers/paystack.ts');
   assert.match(s, /idempotency-key/);
 });
 
@@ -29,6 +29,7 @@ test('concurrent open payment attempts are constrained at database level', () =>
 test('provider-neutral adapter remains available', () => {
   const s = read('src/lib/market/adapters/payment.ts');
   const registry = read('src/lib/market/adapters/registry.ts');
-  assert.match(s, /class JsonHttpPaymentAdapter/);
+  assert.match(s, /interface PaymentProviderAdapter/);
+  assert.doesNotMatch(s, /class JsonHttpPaymentAdapter/);
   assert.match(registry, /function getPaymentAdapter/);
 });

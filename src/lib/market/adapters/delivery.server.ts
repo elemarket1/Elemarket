@@ -1,4 +1,4 @@
-import { assertPublicHttpsEndpoint } from "@/lib/security/ssrf.server";
+import { publicHttpsFetch } from "@/lib/security/ssrf.server";
 import { z } from "zod";
 import { getSql } from "@/lib/db";
 import { isWorkspacePreview } from "@/lib/env.server";
@@ -21,8 +21,7 @@ async function resolveDestination(input: DeliveryQuoteInput): Promise<DeliveryQu
 export class JsonHttpDeliveryAdapter implements DeliveryCarrierAdapter {
   constructor(private readonly endpoint: string, private readonly secret: string) {}
   async quote(input: DeliveryQuoteInput): Promise<DeliveryQuoteResult> {
-    await assertPublicHttpsEndpoint(this.endpoint);
-    const response = await fetch(this.endpoint, {
+    const response = await publicHttpsFetch(this.endpoint, {
       method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${this.secret}` },
       body: JSON.stringify(input), redirect: "error", signal: AbortSignal.timeout(10_000),
     });

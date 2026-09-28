@@ -1,11 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lookup } from "node:dns/promises";
-import { request as httpsRequest } from "node:https";
-import { isPrivateOrReservedIp } from "@/lib/security/ssrf.server";
 import { z } from "zod";
 import { getSql } from "@/lib/db";
 import { encryptMerchantSensitiveData, decryptMerchantSensitiveData } from "@/lib/security/merchant-sensitive.server";
-import { assertPublicHttpsEndpoint } from "@/lib/security/ssrf.server";
+import { assertPublicHttpsEndpoint, publicHttpsFetch } from "@/lib/security/ssrf.server";
 
 const fieldMappingSchema = z.object({
   id: z.string().min(1).max(200),
@@ -104,25 +101,8 @@ function normalizeRecord(raw: unknown, mapping: EnterpriseCatalogFieldMapping): 
 }
 
 export async function pinnedGet(url: URL, headers: Headers): Promise<{ status: number; body: string }> {
-  const addresses = await lookup(url.hostname, { all: true, verbatim: true });
-  const publicAddresses = addresses.map(a => a.address).filter(a => !isPrivateOrReservedIp(a));
-  if (!publicAddresses.length) throw new Error("Enterprise catalog endpoint no longer resolves to a public address");
-  const address = publicAddresses[0];
-  return await new Promise((resolve, reject) => {
-    const req = httpsRequest({
-      protocol: "https:", hostname: address, port: 443, path: `${url.pathname}${url.search}`, method: "GET",
-      servername: url.hostname, headers: { ...Object.fromEntries(headers.entries()), host: url.hostname },
-      lookup: (_host, _opts, cb) => cb(null, address, address.includes(":") ? 6 : 4),
-      timeout: 15_000,
-    }, res => {
-      let total = 0; const chunks: Buffer[] = [];
-      res.on("data", chunk => { total += Buffer.byteLength(chunk); if (total > 10 * 1024 * 1024) { req.destroy(new Error("Enterprise catalog response too large")); return; } chunks.push(Buffer.from(chunk)); });
-      res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
-      res.on("error", reject);
-    });
-    req.on("timeout", () => req.destroy(new Error("Enterprise catalog request timed out")));
-    req.on("error", reject); req.end();
-  });
+  const result = await publicHttpsFetch(url, { headers, maxBytes: 10 * 1024 * 1024 });
+  return { status: result.status, body: await result.text() };
 }
 
 // redirect: "manual"

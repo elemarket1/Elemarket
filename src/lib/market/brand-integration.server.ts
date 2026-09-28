@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { decryptMerchantSensitiveData, encryptMerchantSensitiveData } from "@/lib/security/merchant-sensitive.server";
-import { assertPublicHttpsEndpoint } from "@/lib/security/ssrf.server";
+import { assertPublicHttpsEndpoint, publicHttpsFetch } from "@/lib/security/ssrf.server";
 import { pinnedGet } from "@/lib/market/enterprise-catalog.server";
 
 export type BrandConnectorType = "rest_json" | "csv" | "xml" | "erp_oms_wms" | "manual_feed";
@@ -466,28 +466,8 @@ export async function getBrandIntegrationHealth(input: { merchantId: string }): 
 }
 
 async function pinnedPost(url: URL, headers: Headers, body: string): Promise<{ status: number; response: string }> {
-  const { lookup } = await import("node:dns/promises");
-  const { request } = await import("node:https");
-  const { isPrivateOrReservedIp } = await import("@/lib/security/ssrf.server");
-  const addresses = await lookup(url.hostname, { all: true, verbatim: true });
-  const publicAddresses = addresses.map((a) => a.address).filter((a) => !isPrivateOrReservedIp(a));
-  if (!publicAddresses.length) throw new Error("Integration endpoint no longer resolves to a public address");
-  const address = publicAddresses[0];
-  return new Promise((resolve, reject) => {
-    const req = request({
-      protocol: "https:", hostname: address, port: 443, path: `${url.pathname}${url.search}`, method: "POST",
-      servername: url.hostname, headers: { ...Object.fromEntries(headers.entries()), host: url.hostname },
-      lookup: (_host, _opts, cb) => cb(null, address, address.includes(":") ? 6 : 4), timeout: 15_000,
-    }, (res) => {
-      let total = 0; const chunks: Buffer[] = [];
-      res.on("data", (chunk) => { total += Buffer.byteLength(chunk); if (total > 2 * 1024 * 1024) { req.destroy(new Error("Integration response too large")); return; } chunks.push(Buffer.from(chunk)); });
-      res.on("end", () => resolve({ status: res.statusCode ?? 0, response: Buffer.concat(chunks).toString("utf8") }));
-      res.on("error", reject);
-    });
-    req.on("timeout", () => req.destroy(new Error("Integration request timed out")));
-    req.on("error", reject);
-    req.end(body);
-  });
+  const result = await publicHttpsFetch(url, { method: "POST", headers, body, maxBytes: 2 * 1024 * 1024 });
+  return { status: result.status, response: await result.text() };
 }
 
 export async function processBrandIntegrationOrderOutbox(limit = 25) {

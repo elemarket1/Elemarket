@@ -63,7 +63,7 @@ integration('withdrawal eligibility requires 24 hours, blocks disputes and canno
   await query("update merchant_order_status_history set created_at=now()-interval '25 hours' where order_id=$1",[ids.order]);
   assert.equal((await eligible()).eligible,true);
   await assert.rejects(()=>query('select merchant_order_withdrawal_eligibility($1,$2)',['other-merchant',ids.order]),/order not found/);
-  const result = await eligible(); assert.equal(result.providerSettlementControlled,false); assert.equal(result.deliveryHoldGuaranteed,false);
+  const result = await eligible(); assert.equal(result.eligibilityScope,"elemarket_policy_only");
   await query('select open_customer_order_dispute($1,$2,$3)',[ids.order,ids.user,'Synthetic customer dispute']);
   const repeated = await Promise.all(Array.from({length:8},eligible));
   assert.ok(repeated.every(x=>x.eligible===false));
@@ -71,4 +71,46 @@ integration('withdrawal eligibility requires 24 hours, blocks disputes and canno
   assert.equal((await query('select count(*)::int n from escrows where order_id=$1',[ids.order]))[0].n,0);
   const disabled = await query(`select proname,pg_get_functiondef(p.oid) body from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and proname in ('create_merchant_fund_release_request','review_merchant_fund_release_request')`);
   for (const fn of disabled) assert.match(fn.body,/disabled/);
+});
+
+integration('first payment pins its driver while concurrent reconfiguration waits and fails after commit', async () => {
+  const insert = await pool.connect(), edit = await pool.connect();
+  let transaction = false;
+  try {
+    const ids = await createPaymentFixture(async (sql, params) => {
+      if (/insert into payments\s*\(/.test(sql)) {
+        await insert.query('begin'); transaction = true;
+        return (await insert.query(sql, params)).rows;
+      }
+      return query(sql, params);
+    });
+    await edit.query('begin');
+    await edit.query("set local lock_timeout='100ms'");
+    await assert.rejects(()=>edit.query("update payment_providers set driver_key='other' where provider_key=$1",[ids.provider]),/lock timeout/);
+    await edit.query('rollback');
+    await insert.query('commit'); transaction = false;
+    await assert.rejects(()=>edit.query("update payment_providers set driver_key='other' where provider_key=$1",[ids.provider]),/cannot change driver/);
+    assert.equal((await query('select driver_key from payments where id=$1',[ids.payment]))[0].driver_key,'http');
+  } finally {
+    if(transaction) await insert.query('rollback');
+    await edit.query('rollback');insert.release();edit.release();
+  }
+});
+integration('definer functions pin trusted schemas ahead of pg_temp', async () => {
+  const functions = await query("select proname,proconfig from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef");
+  assert.ok(functions.length>0);
+  for(const fn of functions) assert.ok(fn.proconfig.includes('search_path=pg_catalog, public, pg_temp'),fn.proname);
+});
+integration('telemetry never holds a shared counter lock across financial transactions and preserves all increments',async()=>{
+ const first=await pool.connect(),second=await pool.connect();
+ const key=`counter-race-${crypto.randomUUID()}`;
+ try{
+  await first.query('begin');await second.query('begin');
+  await second.query("set local lock_timeout='100ms'");
+  await first.query('select increment_observability_counter($1,1)',[key]);
+  await second.query('select increment_observability_counter($1,2)',[key]);
+  await first.query('select increment_observability_counter($1,3)',[key]);
+  await second.query('commit');await first.query('commit');
+  assert.equal(Number((await query('select sum(value) total from observability_counters where metric_key=$1',[key]))[0].total),6);
+ }finally{await first.query('rollback');await second.query('rollback');await query('delete from observability_counters where metric_key=$1',[key]);first.release();second.release();}
 });

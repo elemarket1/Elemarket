@@ -1,5 +1,5 @@
 import { createHash, createHmac } from "node:crypto";
-import { assertPublicHttpsEndpoint } from "@/lib/security/ssrf.server";
+import { assertPublicHttpsEndpoint, publicHttpsFetch } from "@/lib/security/ssrf.server";
 import type { PresignedUpload, StorageProvider } from "./provider";
 
 const DEFAULT_EXPIRES = 900;
@@ -213,8 +213,7 @@ export class S3StorageProvider implements StorageProvider {
       .update(stringToSign)
       .digest("hex");
 
-    await assertPublicHttpsEndpoint(url.toString());
-    return fetch(url, {
+    return publicHttpsFetch(url, {
       redirect: "error",
       method,
       headers: {
@@ -240,8 +239,7 @@ export class S3StorageProvider implements StorageProvider {
     const canonicalRequest = ["GET", canonicalUri(url.pathname), "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
     const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, sha256Hex(canonicalRequest)].join("\n");
     const signature = createHmac("sha256", signingKey(this.secretAccessKey, shortDate, this.region)).update(stringToSign).digest("hex");
-    await assertPublicHttpsEndpoint(url.toString());
-    const response = await fetch(url, {
+    const response = await publicHttpsFetch(url, {
       method: "GET",
       headers: {
         "x-amz-date": amzDate,

@@ -10,7 +10,7 @@ const staging = {
   ELEMARKET_ENV: 'staging', ELEMARKET_STORAGE_PROVIDER: 's3', STORAGE_ENDPOINT: 'https://objects.example.com', STORAGE_REGION: 'eu-west-1', STORAGE_BUCKET: 'private-objects', STORAGE_ACCESS_KEY_ID: 'synthetic', STORAGE_SECRET_ACCESS_KEY: 'synthetic',
   ELEMARKET_LOCATION_PROVIDER: 'geoapify', GEOAPIFY_API_KEY: 'synthetic', ELEMARKET_EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 'synthetic', RESEND_FROM_EMAIL: 'sender@example.com', RESEND_WEBHOOK_SECRET: 'synthetic',
   ELEMARKET_OTP_PROVIDER: 'arkesel', ARKESEL_API_KEY: 'synthetic', ARKESEL_OTP_SENDER_ID: 'ELEMARKET', ELEMARKET_PUSH_PROVIDER: 'disabled', ELEMARKET_KYB_PROVIDER: 'manual',
-  ELEMARKET_PAYMENT_PROVIDERS: 'processor', ELEMARKET_PAYMENT_PROCESSOR_DRIVER: 'paystack', ELEMARKET_PAYMENT_PROCESSOR_SECRET: 'synthetic', ELEMARKET_SETTLEMENT_MODE: 'provider_direct_uncontrolled',
+  ELEMARKET_PAYMENT_PROVIDERS: 'processor', ELEMARKET_PAYMENT_PROCESSOR_DRIVER: 'paystack', ELEMARKET_PAYMENT_PROCESSOR_SECRET: 'synthetic',
 };
 
 test('selected capabilities require only their own credentials; R2, Hubtel, FCM and Fylings are absent', () => {
@@ -36,10 +36,8 @@ test('Paystack is not a mandatory selection; unavailable Hubtel/http fail rather
   const env = { ...staging }; delete env.ELEMARKET_PAYMENT_PROCESSOR_DRIVER;
   assert.throws(() => validateProviderConfiguration(env), /processor.*missing configuration.*DRIVER/);
 });
-test('production cannot accept uncontrolled settlement or claim a delivery/dispute hold', () => {
-  for (const mode of ['provider_direct_uncontrolled','provider_delivery_hold']) {
-    assert.throws(() => validateProviderConfiguration({ ...staging, ELEMARKET_ENV: 'production', ELEMARKET_SETTLEMENT_MODE: mode }), /required capability deliveryDisputeHold/);
-  }
+test('production remains provider-neutral and does not require a settlement-control capability', () => {
+  assert.doesNotThrow(() => validateProviderConfiguration({ ...staging, ELEMARKET_ENV: 'production' }));
 });
 test('provider aliases cannot collide on credential environment names', () => {
   assert.throws(() => validateProviderConfiguration({ ...staging, ELEMARKET_PAYMENT_PROVIDERS: 'bank-a,bank_a' }), /collide/);
@@ -66,7 +64,7 @@ test('registry rejects environment-controlled modules and malformed adapter capa
 });
 test('S3 signing supports configured endpoint/region and preserves private immutable 560 KB uploads', async () => {
   const { S3StorageProvider } = loadTypeScript('src/lib/storage/s3.server.ts', {
-    '@/lib/security/ssrf.server': { assertPublicHttpsEndpoint: async x => new URL(x) },
+    '@/lib/security/ssrf.server': { assertPublicHttpsEndpoint: async x => new URL(x), publicHttpsFetch: (...args) => fetch(...args) },
   });
   const provider = new S3StorageProvider({ endpoint: staging.STORAGE_ENDPOINT, region: staging.STORAGE_REGION, bucket: staging.STORAGE_BUCKET, accessKeyId: 'synthetic', secretAccessKey: 'synthetic' });
   const result = await provider.createPresignedUpload({ key: 'profile-image/owner/file.png', contentType: 'image/png', sizeBytes: 560 * 1024 });
@@ -83,7 +81,7 @@ test('storage and delivery reject private, reserved and redirect targets before 
   const { assertPublicHttpsEndpoint } = loadTypeScript('src/lib/security/ssrf.server.ts');
   for (const endpoint of ['http://example.com','https://127.0.0.1','https://169.254.169.254','https://[::1]','https://10.0.0.1','https://user:pass@example.com']) await assert.rejects(() => assertPublicHttpsEndpoint(endpoint));
   for (const file of ['src/lib/storage/s3.server.ts','src/lib/market/adapters/delivery.server.ts','src/lib/kyb/providers/fylings.server.ts']) {
-    const source = fs.readFileSync(file,'utf8'); assert.match(source, /assertPublicHttpsEndpoint/); assert.match(source, /redirect: "error"/);
+    const source = fs.readFileSync(file,'utf8'); assert.match(source, /publicHttpsFetch/); assert.match(source, /redirect: "error"/);
   }
 });
 test('core modules contain no provider branches, credentials, response signatures or imports', () => {
@@ -93,7 +91,7 @@ test('core modules contain no provider branches, credentials, response signature
 });
 
 test('storage streaming validation cancels oversized bodies even with a false Content-Length', async t => {
-  const { S3StorageProvider } = loadTypeScript('src/lib/storage/s3.server.ts', { '@/lib/security/ssrf.server': { assertPublicHttpsEndpoint: async x => new URL(x) } });
+  const { S3StorageProvider } = loadTypeScript('src/lib/storage/s3.server.ts', { '@/lib/security/ssrf.server': { assertPublicHttpsEndpoint: async x => new URL(x), publicHttpsFetch: (...args) => fetch(...args) } });
   let cancelled = false;
   t.mock.method(globalThis, 'fetch', async () => new Response(new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array(20)); }, cancel() { cancelled = true; } }), { headers: { 'content-length':'1' } }));
   const provider = new S3StorageProvider({ endpoint:'https://objects.example.com', region:'eu-west-1', bucket:'private-files',accessKeyId:'synthetic',secretAccessKey:'synthetic' });

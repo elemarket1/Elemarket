@@ -68,4 +68,3 @@ export class GeoapifyLocationProvider implements LocationProvider {
     return this.request(url);
   }
 }
-

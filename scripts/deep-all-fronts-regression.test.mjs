@@ -25,10 +25,9 @@ test('public catalog server functions have durable abuse limits and bounded resu
 test('external provider requests reject redirects so credentials cannot be forwarded to a new host', () => {
   for (const file of [
     'src/lib/market/adapters/providers/paystack.ts',
-    'src/lib/market/adapters/payment.ts',
     'src/lib/market/adapters/delivery.server.ts',
     'src/lib/market/adapters/providers/geoapify.server.ts',
-    'src/lib/market/search.server.ts',
+    'src/lib/market/adapters/providers/typesense.server.ts',
     'src/lib/auth/email/providers/resend.server.ts',
     'src/lib/auth/otp/providers/arkesel.server.ts',
     'src/lib/kyb/providers/fylings.server.ts',

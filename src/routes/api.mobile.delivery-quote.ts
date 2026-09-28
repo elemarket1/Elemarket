@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth/server";
 import { requestDeliveryQuoteServer } from "@/lib/market/adapters/delivery.server";
 import { readBodyWithLimit } from "@/lib/security/body.server";
 import { requireCustomerForUserId } from "@/lib/auth/authorization.server";
+import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
+import { enforceRateLimit, rateLimitResponse } from "@/lib/security/rate-limit.server";
 
 const schema = z.object({
   merchantId: z.string().trim().min(1).max(128),
@@ -15,9 +17,12 @@ const schema = z.object({
 
 export const Route = createFileRoute("/api/mobile/delivery-quote")({
   server: { handlers: { POST: async ({ request }) => {
+    assertSameSiteRequest();
     const current = await auth.api.getSession({ headers: request.headers });
     if (!current?.user) return Response.json({ error: "Unauthorized" }, { status: 401, headers: { "cache-control": "no-store" } });
     await requireCustomerForUserId(current.user.id);
+    try { await enforceRateLimit("mobile-delivery-quote", { windowSeconds: 60, maxRequests: 30, subject: current.user.id }); }
+    catch (error) { const limited = rateLimitResponse(error); if (limited) return limited; throw error; }
     let raw: string;
     try { raw = await readBodyWithLimit(request, 16 * 1024); } catch { return Response.json({ error: "Request too large" }, { status: 413 }); }
     let body: unknown;

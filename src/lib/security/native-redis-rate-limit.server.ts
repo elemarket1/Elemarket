@@ -45,15 +45,11 @@ function parseValue(buffer: Buffer, offset = 0): { value: RedisValue; next: numb
   throw new Error(`Unsupported Redis response type: ${String.fromCharCode(type)}`);
 }
 
-function isRender(env = process.env): boolean {
-  return env.RENDER === "true" || env.RENDER === "1";
-}
-
 function isRenderInternalKeyValueHost(hostname: string): boolean {
   return /^red-[a-z0-9][a-z0-9-]*$/i.test(hostname);
 }
 
-export function supportsNativeRedisUrl(value: string | undefined, env = process.env): boolean {
+export function supportsNativeRedisUrl(value: string | undefined): boolean {
   if (!value) return false;
   try {
     const url = new URL(value);
@@ -61,7 +57,7 @@ export function supportsNativeRedisUrl(value: string | undefined, env = process.
       // Render's documented internal Key Value URL is redis://red-...:6379.
       // Do not require the undocumented RENDER runtime flag, because Docker
       // services are not guaranteed to receive it.
-      return isRender(env) || isRenderInternalKeyValueHost(url.hostname);
+      return isRenderInternalKeyValueHost(url.hostname);
     }
     return url.protocol === "rediss:";
   } catch {

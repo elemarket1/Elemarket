@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Pool } from 'pg';
+import { validateRuntimeDatabaseRole } from './runtime-db-policy.mjs';
+import { writeFile, unlink } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 const enabled = process.env.RUN_DB_INTEGRATION === '1' && !!process.env.ELEMARKET_INTEGRATION_DATABASE_URL;
 
@@ -17,13 +19,38 @@ test('runtime startup verifies alias credentials, complete migrations and exact 
     const migrated = run('scripts/migrate.mjs');
     assert.equal(migrated.status,0,migrated.stderr);
     db = new Pool({ connectionString: base.toString() });
-    await db.query("insert into payment_providers(id,provider_key,name,method,status,driver_key) values('startup-provider','processor','Synthetic processor','mobile_money','active','paystack')");
+    assert.match(run('scripts/validate-runtime-db.mjs').stderr,/No active payment providers/);
+    const configuration = `/tmp/${name}.json`;
+    await writeFile(configuration,JSON.stringify([{providerKey:'processor',name:'Synthetic processor',method:'mobile_money'}]));
+    try {
+      for(let i=0;i<2;i++) {
+        const activated=spawnSync(process.execPath,['scripts/configure-payment-providers.mjs',configuration],{env:environment,encoding:'utf8'});
+        assert.equal(activated.status,0,activated.stderr);
+      }
+    } finally { await unlink(configuration); }
+    assert.equal((await db.query("select count(*)::int n from payment_providers where provider_key='processor'")).rows[0].n,1);
     assert.equal(run('scripts/validate-runtime-db.mjs').status,0);
+    await assert.rejects(()=>validateRuntimeDatabaseRole(db),/administrative/);
+    const role=`app_${crypto.randomUUID().replaceAll('-','')}`;
+    const scoped=await db.connect();
+    try {
+      await scoped.query('begin');
+      await scoped.query(`create role ${role}`);
+      await scoped.query(`grant usage on schema public to ${role}`);
+      await scoped.query(`grant select on all tables in schema public to ${role}`);
+      await scoped.query(`set local role ${role}`);
+      await validateRuntimeDatabaseRole(scoped);
+      await scoped.query('reset role');
+      await scoped.query(`grant update on payment_driver_capabilities to ${role}`);
+      await scoped.query(`set local role ${role}`);
+      await assert.rejects(()=>validateRuntimeDatabaseRole(scoped),/provider-configuration/);
+    } finally {await scoped.query('rollback');scoped.release();}
+
     await db.query("update payment_driver_capabilities set refund=false where driver_key='paystack'");
     assert.match(run('scripts/validate-runtime-db.mjs').stderr,/capability mismatch/);
     await db.query('delete from payment_driver_capabilities');
     assert.match(run('scripts/validate-runtime-db.mjs').stderr,/missing database capability metadata/);
-    await db.query("insert into payment_driver_capabilities(driver_key,refund,delivery_dispute_hold) values('paystack',true,false)");
+    await db.query("insert into payment_driver_capabilities(driver_key,refund) values('paystack',true)");
     delete environment.ELEMARKET_PAYMENT_PROCESSOR_SECRET;
     assert.match(run('scripts/validate-runtime-db.mjs').stderr,/processor.*configuration mismatch/);
     environment.ELEMARKET_PAYMENT_PROCESSOR_SECRET='synthetic';

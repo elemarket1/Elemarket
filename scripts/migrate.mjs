@@ -16,10 +16,11 @@ import { readdir, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { pendingMigrations } from "./migration-plan.mjs";
+import { pendingMigrations, validateMigrationManifest } from "./migration-plan.mjs";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
+  if (["production", "staging"].includes(process.env.ELEMARKET_ENV) || process.env.NODE_ENV === "production") throw new Error("DATABASE_URL is required for deployment migrations");
   console.log(
     "[migrate] DATABASE_URL not set — skipping (the PGLite fallback migrates itself).",
   );
@@ -36,14 +37,10 @@ async function main() {
   try {
     entries = await readdir(migrationsDir);
   } catch {
-    console.log("[migrate] no migrations/ directory — nothing to do.");
-    return;
+    throw new Error("Deployment migrations directory is missing");
   }
-  // An app with no schema of its own must not pay for a database connection.
-  if (pendingMigrations(entries, []).length === 0) {
-    console.log("[migrate] no migrations — nothing to do.");
-    return;
-  }
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  validateMigrationManifest(entries, manifest);
 
   const { default: pg } = await import("pg");
   const pool = new pg.Pool({ ...postgresConfig(databaseUrl), max: 1, statement_timeout: 0 });
@@ -53,7 +50,6 @@ async function main() {
   try {
     await client.query("SELECT pg_advisory_lock($1)", [MIGRATION_LOCK_KEY]);
     lockHeld = true;
-    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     const migrationFiles = entries.filter((name) => name.endsWith(".sql")).sort((a,b)=>a.localeCompare(b));
     for (const name of migrationFiles) {
       const text = await readFile(join(migrationsDir, name), "utf8");

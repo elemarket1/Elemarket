@@ -1,3 +1,4 @@
+import { publicHttpsFetch } from "@/lib/security/ssrf.server";
 import { isIP } from "node:net";
 import { createHash } from "node:crypto";
 import { getRequest } from "@tanstack/react-start/server";
@@ -78,7 +79,7 @@ export async function enforceRateLimit(
   } else if (redisUrl?.startsWith("https://") && redisToken) {
     try {
       const script = `local c=redis.call('INCR',KEYS[1]); if c==1 then redis.call('EXPIRE',KEYS[1],ARGV[1]) end; local ttl=redis.call('TTL',KEYS[1]); return {c,ttl}`;
-      const response = await fetch(redisUrl, {
+      const response = await publicHttpsFetch(redisUrl, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${redisToken}` },
         body: JSON.stringify({ command: ["EVAL", script, "1", key, String(options.windowSeconds)] }),

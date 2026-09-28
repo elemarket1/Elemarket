@@ -123,3 +123,5 @@ Required deployment secret for the protected scheduled sync endpoint:
 The scheduled endpoint is `POST /api/enterprise/catalog/sync` with the `x-elemarket-sync-secret` header. Enterprise catalog credentials require the existing `ELEMARKET_MERCHANT_DATA_ENCRYPTION_KEY` encryption key.
 
 For the brand/distributor worker endpoint (`POST /api/internal/brand-integration-worker`), production requires an HMAC proof using `ELEMARKET_ENTERPRISE_SYNC_SECRET`: send `x-elemarket-sync-timestamp` (Unix milliseconds) and `x-elemarket-sync-signature = HMAC-SHA256(secret, "<timestamp>.<method>.<path>")`. The legacy static secret header is accepted only outside production.
+
+Production follow-up: see [release procedure and remaining financial gate](docs/deployment/production-cto-follow-up.md) for explicit provider activation, restricted runtime database roles, outbound security changes, and dependency validation.

@@ -164,8 +164,6 @@ integration(
     assert.match(order.customerEmail, /\*\*\*/);
     assert.equal(order.merchantId, ids.merchant);
     assert.equal(order.merchantName, "Integration Merchant");
-    assert.equal(withdrawal.deliveryHoldGuaranteed, false);
-    assert.equal(withdrawal.providerSettlementControlled, false);
     assert.ok(order.paymentDeadline);
   },
 );

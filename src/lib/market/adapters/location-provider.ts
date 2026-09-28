@@ -17,4 +17,3 @@ export interface LocationProvider {
   geocode(address: string): Promise<GeocodedLocation>;
   reverseGeocode(lat: number, lon: number): Promise<GeocodedLocation>;
 }
-

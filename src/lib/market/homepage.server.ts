@@ -33,7 +33,13 @@ function rowToProduct(r: any): ProductCard {
 
 const AD_VISITOR_COOKIE = "elemarket.ad_visitor";
 const AD_VISITOR_MAX_AGE = 60 * 60 * 24 * 30;
-const adVisitorSecret = () => process.env.BETTER_AUTH_SECRET?.trim() || "local-ad-analytics-development-secret";
+const adVisitorSecret = () => {
+  const configured = process.env.BETTER_AUTH_SECRET?.trim();
+  if (configured) return configured;
+  const runtime = globalThis as typeof globalThis & { __elemarketAdVisitorSecret__?: string };
+  runtime.__elemarketAdVisitorSecret__ ??= randomBytes(32).toString("hex");
+  return runtime.__elemarketAdVisitorSecret__;
+};
 function signAdVisitor(value:string):string {
   return createHmac("sha256", adVisitorSecret()).update(value, "utf8").digest("base64url");
 }
