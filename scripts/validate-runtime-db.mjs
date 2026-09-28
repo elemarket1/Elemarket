@@ -4,45 +4,78 @@ import { Pool } from "pg";
 import { postgresConfig } from "./postgres-config.mjs";
 import manifest from "../migrations.sha256.json" with { type: "json" };
 
-const pool = new Pool(postgresConfig(process.env.DATABASE_URL));
+const pool = new Pool({
+  ...postgresConfig(process.env.DATABASE_URL),
+  connectionTimeoutMillis: 10_000,
+  query_timeout: 15_000,
+  statement_timeout: 15_000,
+});
+
+async function stage(name, fn) {
+  const started = Date.now();
+  console.log(JSON.stringify({ event: "startup.database_validation_stage", stage: name }));
+  try {
+    const result = await fn();
+    console.log(
+      JSON.stringify({
+        event: "startup.database_validation_stage_complete",
+        stage: name,
+        duration_ms: Date.now() - started,
+      }),
+    );
+    return result;
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "startup.database_validation_stage_failed",
+        stage: name,
+        duration_ms: Date.now() - started,
+        error: error?.message || String(error),
+        code: error?.code,
+      }),
+    );
+    throw error;
+  }
+}
 
 try {
   if (["production", "staging"].includes(process.env.ELEMARKET_ENV)) {
-    await validateRuntimeDatabaseRole(pool);
+    await stage("runtime_database_role", () => validateRuntimeDatabaseRole(pool));
   }
 
-  const applied = await pool.query("select name,checksum from _migrations");
+  const applied = await stage("migration_integrity", () =>
+    pool.query("select name,checksum from _migrations"),
+  );
+
   if (
     Object.entries(manifest).some(
-      ([name, hash]) => !applied.rows.some((r) => r.name === name && r.checksum === hash),
+      ([name, hash]) =>
+        !applied.rows.some((row) => row.name === name && row.checksum === hash),
     )
   ) {
     throw new Error("Deployment migrations are missing or mismatched");
   }
 
-  /*
-   * Payment is an optional adapter capability.
-   *
-   * The marketplace must be able to boot with zero payment providers.
-   * When payment is explicitly enabled, however, every active provider must
-   * still have a reviewed driver, matching environment configuration, and
-   * matching database capability metadata.
-   */
   const configured = new Set(
     (process.env.ELEMARKET_PAYMENT_PROVIDERS ?? "")
       .split(",")
-      .map((x) => x.trim())
+      .map((value) => value.trim())
       .filter(Boolean),
   );
 
-  const active = await pool.query(
-    "select provider_key,status,driver_key,method,requires_merchant_account,supports_webhook_verification " +
-      "from payment_providers where status='active'",
+  /*
+   * Payment is optional. The marketplace must boot with zero configured/active
+   * payment providers. Payment-specific database validation only runs when
+   * payment is actually enabled or when stale active DB configuration must be
+   * detected.
+   */
+  const active = await stage("payment_provider_state", () =>
+    pool.query(
+      "select provider_key,status,driver_key,method,requires_merchant_account,supports_webhook_verification " +
+        "from payment_providers where status='active'",
+    ),
   );
 
-  // No active providers + no explicit payment configuration is a valid
-  // provider-neutral marketplace deployment. Do not force Paystack, Hubtel,
-  // or any other payment vendor merely to start the application.
   if (!active.rows.length && !configured.size) {
     console.log(
       JSON.stringify({
@@ -59,59 +92,65 @@ try {
 
     const providers = active;
 
-    for (const p of providers.rows) {
-    const prefix = paymentPrefix(p.provider_key);
-    const driver = paymentDriver(p.driver_key);
+    for (const provider of providers.rows) {
+      const prefix = paymentPrefix(provider.provider_key);
+      const driver = paymentDriver(provider.driver_key);
 
-    if (
-      !driver.capabilities.methods.includes(p.method) ||
-      p.requires_merchant_account !== driver.capabilities.merchantAccount ||
-      !p.supports_webhook_verification
-    ) {
-      throw new Error(
-        `payment provider '${p.provider_key}': database method/capability mismatch`,
-      );
+      if (
+        !driver.capabilities.methods.includes(provider.method) ||
+        provider.requires_merchant_account !== driver.capabilities.merchantAccount ||
+        !provider.supports_webhook_verification
+      ) {
+        throw new Error(
+          `payment provider '${provider.provider_key}': database method/capability mismatch`,
+        );
+      }
+
+      if (
+        !configured.has(provider.provider_key) ||
+        process.env[`${prefix}_DRIVER`]?.trim() !== provider.driver_key ||
+        driver.required.some(
+          (suffix) => !process.env[`${prefix}_${suffix}`]?.trim(),
+        )
+      ) {
+        throw new Error(
+          `payment provider '${provider.provider_key}': driver/configuration mismatch`,
+        );
+      }
     }
 
-    if (
-      !configured.has(p.provider_key) ||
-      process.env[`${prefix}_DRIVER`]?.trim() !== p.driver_key ||
-      driver.required.some(
-        (suffix) => !process.env[`${prefix}_${suffix}`]?.trim(),
-      )
-    ) {
-      throw new Error(
-        `payment provider '${p.provider_key}': driver/configuration mismatch`,
-      );
-    }
-  }
+    const capabilities = await stage("payment_capabilities", () =>
+      pool.query(
+        "select driver_key,refund from payment_driver_capabilities",
+      ),
+    );
 
-  const capabilities = await pool.query(
-    "select driver_key,refund from payment_driver_capabilities",
-  );
-
-  for (const p of providers.rows) {
-    if (
-      !capabilities.rows.some((row) => row.driver_key === p.driver_key)
-    ) {
-      throw new Error(
-        `payment provider '${p.provider_key}': missing database capability metadata`,
-      );
+    for (const provider of providers.rows) {
+      if (
+        !capabilities.rows.some(
+          (row) => row.driver_key === provider.driver_key,
+        )
+      ) {
+        throw new Error(
+          `payment provider '${provider.provider_key}': missing database capability metadata`,
+        );
+      }
     }
-  }
 
-  for (const row of capabilities.rows) {
-    const driver = paymentDriver(row.driver_key);
-    if (row.refund !== driver.capabilities.refund) {
-      throw new Error("Database payment capability mismatch");
+    for (const row of capabilities.rows) {
+      const driver = paymentDriver(row.driver_key);
+      if (row.refund !== driver.capabilities.refund) {
+        throw new Error("Database payment capability mismatch");
+      }
     }
-  }
 
     console.log(
       JSON.stringify({
         event: "startup.database_validated",
         payment: "enabled",
-        activePaymentProviders: providers.rows.map((p) => p.provider_key),
+        activePaymentProviders: providers.rows.map(
+          (provider) => provider.provider_key,
+        ),
       }),
     );
   }
