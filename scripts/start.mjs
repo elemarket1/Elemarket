@@ -2,9 +2,11 @@
 /**
  * Production runtime entrypoint.
  *
- * Database migrations are intentionally NOT executed during application startup.
- * Run `npm run db:migrate` as the deployment/release step before starting the
- * service. This keeps schema changes out of the application availability path.
+ * Render Free does not provide a pre-deploy migration hook, so Render production
+ * services apply idempotent deployment migrations immediately before runtime
+ * validation. The migrator uses an advisory lock and only applies pending,
+ * checksum-verified migrations. Non-Render production/staging deployments keep
+ * the explicit release-step migration model.
  */
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -48,6 +50,12 @@ async function main() {
 
   const validation = spawnSync(process.execPath, [fileURLToPath(new URL("./validate-startup-env.mjs", import.meta.url)), "--require-shared"], { stdio: "inherit", env: process.env });
   if (validation.error || validation.status !== 0) throw new Error("Startup environment validation failed");
+  if (process.env.RENDER === "true" && ["production", "staging"].includes(process.env.ELEMARKET_ENV)) {
+    console.log(JSON.stringify({ event: "startup.database_migrations_begin", mode: "render-startup" }));
+    const migration = spawnSync(process.execPath, [fileURLToPath(new URL("./migrate.mjs", import.meta.url))], { stdio: "inherit", env: process.env });
+    if (migration.error || migration.status !== 0) throw new Error("Startup database migration failed");
+    console.log(JSON.stringify({ event: "startup.database_migrations_complete", mode: "render-startup" }));
+  }
   const databaseValidation = spawnSync(process.execPath, [fileURLToPath(new URL("./validate-runtime-db.mjs", import.meta.url))], { stdio: "inherit", env: process.env });
   if (databaseValidation.error || databaseValidation.status !== 0) throw new Error("Startup database/provider validation failed");
   const entry = await findServerEntry();
