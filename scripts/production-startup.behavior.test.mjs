@@ -17,7 +17,9 @@ test('staging starts without delivery configuration; enabled providers still req
  const renderDockerConfig={...config,RENDER:undefined,PG_SSL_MODE:'require',DATABASE_URL:'postgresql://synthetic:synthetic@dpg-render-internal:5432/elemarket',REDIS_URL:'redis://red-render-internal:6379'};
  delete renderDockerConfig.REDIS_HTTP_TOKEN;
  assert.equal(run(renderDockerConfig).status,0);
- for(const key of Object.keys(config).filter(k=>!['RENDER','ELEMARKET_ENV','ELEMARKET_PUSH_PROVIDER','REDIS_URL','ELEMARKET_SETTLEMENT_MODE'].includes(k))){const env={...config};delete env[key];assert.notEqual(run(env).status,0,key)}
+ for(const key of Object.keys(config).filter(k=>!['RENDER','ELEMARKET_ENV','ELEMARKET_PUSH_PROVIDER','REDIS_URL','ELEMARKET_SETTLEMENT_MODE','ELEMARKET_PAYMENT_PROVIDERS','ELEMARKET_PAYMENT_PAYSTACK_DRIVER','ELEMARKET_PAYMENT_PAYSTACK_SECRET'].includes(k))){const env={...config};delete env[key];assert.notEqual(run(env).status,0,key)}
+ const paymentDisabled={...config};delete paymentDisabled.ELEMARKET_PAYMENT_PROVIDERS;delete paymentDisabled.ELEMARKET_PAYMENT_PAYSTACK_DRIVER;delete paymentDisabled.ELEMARKET_PAYMENT_PAYSTACK_SECRET;assert.equal(run(paymentDisabled).status,0);
+
  for(const change of [{REDIS_URL:'redis://external.invalid:6379'},{PG_SSL_MODE:'disable'},{ELEMARKET_PAYMENT_PAYSTACK_DRIVER:'http'}])assert.notEqual(run({...config,...change}).status,0);
 });
 test('PostgreSQL pools are bounded and production cannot bypass certificate verification using URL flags',()=>{

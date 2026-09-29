@@ -19,7 +19,7 @@ test('runtime startup verifies alias credentials, complete migrations and exact 
     const migrated = run('scripts/migrate.mjs');
     assert.equal(migrated.status,0,migrated.stderr);
     db = new Pool({ connectionString: base.toString() });
-    assert.match(run('scripts/validate-runtime-db.mjs').stderr,/No active payment providers/);
+    assert.equal(run('scripts/validate-runtime-db.mjs').status,0,run('scripts/validate-runtime-db.mjs').stderr);
     const configuration = `/tmp/${name}.json`;
     await writeFile(configuration,JSON.stringify([{providerKey:'processor',name:'Synthetic processor',method:'mobile_money'}]));
     try {

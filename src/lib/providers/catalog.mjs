@@ -85,17 +85,22 @@ export function validateProviderConfiguration(environment = process.env) {
     for (const suffix of ['ENDPOINT','SECRET']) if (!environment[`${deliveryPrefix}_${suffix}`]?.trim()) throw new Error(`delivery provider '${delivery}': missing configuration ${deliveryPrefix}_${suffix}`);
     configuredOrigin(environment[`${deliveryPrefix}_ENDPOINT`] || '', 'delivery', true);
   }
+  // Payment is an optional deployment capability. The marketplace can start
+  // with payments disabled and enable one or more reviewed adapters later via
+  // the explicit providers:configure release operation. Never force a payment
+  // vendor or credentials merely to boot the application.
   const providers = (environment.ELEMARKET_PAYMENT_PROVIDERS || '').split(',').map(x => x.trim()).filter(Boolean);
-  if (!providers.length) throw new Error('payment: missing configuration ELEMARKET_PAYMENT_PROVIDERS');
-  const prefixes = providers.map(paymentPrefix);
-  if (new Set(prefixes).size !== prefixes.length) throw new Error('payment: provider aliases collide');
-  for (const key of providers) {
-    const prefix = paymentPrefix(key);
-    const driverKey = environment[`${prefix}_DRIVER`]?.trim();
-    if (!driverKey) throw new Error(`payment provider '${key}': missing configuration ${prefix}_DRIVER`);
-    const driver = paymentDriver(driverKey);
-    const missing = driver.required.map(suffix => `${prefix}_${suffix}`).filter(name => !environment[name]?.trim());
-    if (missing.length) throw new Error(`payment provider '${key}': missing configuration ${missing.join(', ')}`);
+  if (providers.length) {
+    const prefixes = providers.map(paymentPrefix);
+    if (new Set(prefixes).size !== prefixes.length) throw new Error('payment: provider aliases collide');
+    for (const key of providers) {
+      const prefix = paymentPrefix(key);
+      const driverKey = environment[`${prefix}_DRIVER`]?.trim();
+      if (!driverKey) throw new Error(`payment provider '${key}': missing configuration ${prefix}_DRIVER`);
+      const driver = paymentDriver(driverKey);
+      const missing = driver.required.map(suffix => `${prefix}_${suffix}`).filter(name => !environment[name]?.trim());
+      if (missing.length) throw new Error(`payment provider '${key}': missing configuration ${missing.join(', ')}`);
+    }
   }
   // Settlement timing is deliberately not a provider capability requirement.
   // ELEMARKET does not custody customer funds; provider settlement/refunds remain
