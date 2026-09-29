@@ -39,6 +39,7 @@ export async function configurePaymentProviders(pool, entries) {
     if (Object.entries(manifest).some(([name, hash]) => !applied.rows.some(r => r.name === name && r.checksum === hash))) throw new Error('Deployment migrations are missing or mismatched');
     for (const entry of [...entries].sort((a,b) => a.providerKey.localeCompare(b.providerKey))) {
       const c = await client.query('select refund,delivery_dispute_hold from payment_driver_capabilities where driver_key=$1 for share', [entry.driverKey]);
+      // delivery_dispute_hold is retained as legacy capability metadata only; it is not a startup or activation gate.
       if (!c.rows[0] || c.rows[0].refund !== entry.capabilities.refund || c.rows[0].delivery_dispute_hold !== entry.capabilities.deliveryDisputeHold) throw new Error('Database payment capability mismatch');
       // The immutable driver trigger rejects reassigning historical payments. Never deactivate other aliases.
       await client.query(`insert into payment_providers(id,provider_key,name,method,status,driver_key,requires_merchant_account,supports_webhook_verification)

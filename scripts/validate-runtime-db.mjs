@@ -16,7 +16,6 @@ try {
   for (const p of providers.rows) {
     const prefix = paymentPrefix(p.provider_key);
     const driver = paymentDriver(p.driver_key);
-    if (process.env.ELEMARKET_ENV === 'production' && p.status === 'active' && !driver.capabilities.deliveryDisputeHold) throw new Error(`payment provider '${p.provider_key}': active provider lacks deliveryDisputeHold`);
     if (p.status === 'active' && (!driver.capabilities.methods.includes(p.method) || p.requires_merchant_account !== driver.capabilities.merchantAccount || !p.supports_webhook_verification)) throw new Error(`payment provider '${p.provider_key}': database method/capability mismatch`);
     if (!configured.has(p.provider_key) || process.env[`${prefix}_DRIVER`]?.trim() !== p.driver_key || driver.required.some(suffix => !process.env[`${prefix}_${suffix}`]?.trim())) throw new Error(`payment provider '${p.provider_key}': driver/configuration mismatch`);
   }

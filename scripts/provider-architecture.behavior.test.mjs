@@ -6,13 +6,22 @@ import { browserPolicy } from '../src/lib/providers/browser-policy.mjs';
 import { loadTypeScript } from './helpers/load-typescript.mjs';
 
 const staging = {
-  ELEMARKET_DELIVERY_PROVIDER: 'courier', ELEMARKET_DELIVERY_COURIER_ENDPOINT: 'https://courier.example.com/quote', ELEMARKET_DELIVERY_COURIER_SECRET: 'synthetic',
   ELEMARKET_ENV: 'staging', ELEMARKET_STORAGE_PROVIDER: 's3', STORAGE_ENDPOINT: 'https://objects.example.com', STORAGE_REGION: 'eu-west-1', STORAGE_BUCKET: 'private-objects', STORAGE_ACCESS_KEY_ID: 'synthetic', STORAGE_SECRET_ACCESS_KEY: 'synthetic',
   ELEMARKET_LOCATION_PROVIDER: 'geoapify', GEOAPIFY_API_KEY: 'synthetic', ELEMARKET_EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 'synthetic', RESEND_FROM_EMAIL: 'sender@example.com', RESEND_WEBHOOK_SECRET: 'synthetic',
   ELEMARKET_OTP_PROVIDER: 'arkesel', ARKESEL_API_KEY: 'synthetic', ARKESEL_OTP_SENDER_ID: 'ELEMARKET', ELEMARKET_PUSH_PROVIDER: 'disabled', ELEMARKET_KYB_PROVIDER: 'manual',
   ELEMARKET_PAYMENT_PROVIDERS: 'processor', ELEMARKET_PAYMENT_PROCESSOR_DRIVER: 'paystack', ELEMARKET_PAYMENT_PROCESSOR_SECRET: 'synthetic', ELEMARKET_SETTLEMENT_MODE: 'provider_direct_uncontrolled',
 };
 
+test('delivery configuration is optional and does not block shared startup', () => {
+  const env = { ...staging };
+  assert.doesNotThrow(() => validateProviderConfiguration(env));
+  env.ELEMARKET_DELIVERY_PROVIDER = 'courier';
+  env.ELEMARKET_DELIVERY_COURIER_ENDPOINT = 'https://courier.example.com/quote';
+  env.ELEMARKET_DELIVERY_COURIER_SECRET = 'synthetic';
+  assert.doesNotThrow(() => validateProviderConfiguration(env));
+  delete env.ELEMARKET_DELIVERY_COURIER_SECRET;
+  assert.throws(() => validateProviderConfiguration(env), /delivery provider 'courier': missing configuration/);
+});
 test('selected capabilities require only their own credentials; R2, Hubtel, FCM and Fylings are absent', () => {
   assert.doesNotThrow(() => validateProviderConfiguration(staging));
   assert.ok(!Object.keys(staging).some(k => /CLOUDFLARE|HUBTEL|FCM|FYLINGS|PAYSTACK_SECRET/.test(k)));

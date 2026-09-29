@@ -75,12 +75,16 @@ export function validateProviderConfiguration(environment = process.env) {
     } catch { throw new Error('push provider fcm: invalid FCM_SERVICE_ACCOUNT_JSON (project_id/client_email/private_key required)'); }
   }
   if (selectedProvider('otp', environment).key === 'arkesel' && (environment.ARKESEL_OTP_SENDER_ID?.trim().length || 0) > 11) throw new Error('otp provider arkesel: invalid ARKESEL_OTP_SENDER_ID');
+  // Delivery is an optional marketplace capability. Its absence must never prevent
+  // the application from starting; checkout requests that require a delivery quote
+  // fail closed at the delivery service boundary instead.
   const delivery = environment.ELEMARKET_DELIVERY_PROVIDER?.trim();
-  if (!delivery) throw new Error('delivery: missing configuration ELEMARKET_DELIVERY_PROVIDER');
-  if (!/^[a-z0-9_-]{2,64}$/.test(delivery) || delivery === 'preview') throw new Error('delivery: invalid shared-environment provider identifier');
-  const deliveryPrefix = `ELEMARKET_DELIVERY_${delivery.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`;
-  for (const suffix of ['ENDPOINT','SECRET']) if (!environment[`${deliveryPrefix}_${suffix}`]?.trim()) throw new Error(`delivery provider '${delivery}': missing configuration ${deliveryPrefix}_${suffix}`);
-  configuredOrigin(environment[`${deliveryPrefix}_ENDPOINT`] || '', 'delivery', true);
+  if (delivery) {
+    if (!/^[a-z0-9_-]{2,64}$/.test(delivery) || delivery === 'preview') throw new Error('delivery: invalid shared-environment provider identifier');
+    const deliveryPrefix = `ELEMARKET_DELIVERY_${delivery.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`;
+    for (const suffix of ['ENDPOINT','SECRET']) if (!environment[`${deliveryPrefix}_${suffix}`]?.trim()) throw new Error(`delivery provider '${delivery}': missing configuration ${deliveryPrefix}_${suffix}`);
+    configuredOrigin(environment[`${deliveryPrefix}_ENDPOINT`] || '', 'delivery', true);
+  }
   const providers = (environment.ELEMARKET_PAYMENT_PROVIDERS || '').split(',').map(x => x.trim()).filter(Boolean);
   if (!providers.length) throw new Error('payment: missing configuration ELEMARKET_PAYMENT_PROVIDERS');
   const prefixes = providers.map(paymentPrefix);
