@@ -49,13 +49,19 @@ export function pendingMigrations(paths, applied) {
  * @param {string[]} entries @param {Record<string,string>} manifest
  */
 export function validateMigrationManifest(entries, manifest) {
-  const names = entries.filter(isMigrationFile);
-  if (!names.length || names.length !== Object.keys(manifest).length) throw new Error("Migration files and manifest do not match");
+  const names = [...new Set(entries.filter(isMigrationFile).map(migrationName))].sort();
+  const manifestNames = Object.keys(manifest).sort();
+  if (!names.length) throw new Error("Deployment migrations directory is empty");
+  if (names.length !== manifestNames.length || names.some((name, i) => name !== manifestNames[i])) {
+    const missing = manifestNames.filter((name) => !names.includes(name));
+    const untracked = names.filter((name) => !Object.prototype.hasOwnProperty.call(manifest, name));
+    throw new Error(`Migration files and manifest do not match; missing=${missing.join(",") || "none"}; untracked=${untracked.join(",") || "none"}`);
+  }
   const prefixes = new Set();
   for (const name of names) {
     const match = /^(\d{4})_[a-z0-9_]+\.sql$/.exec(name);
-    if (!match || prefixes.has(match[1])) throw new Error("Invalid or duplicate migration number");
+    if (!match || prefixes.has(match[1])) throw new Error(`Invalid or duplicate migration number: ${name}`);
     prefixes.add(match[1]);
-    if (!/^[a-f0-9]{64}$/.test(manifest[name] || "")) throw new Error("Missing migration checksum");
+    if (!/^[a-f0-9]{64}$/.test(manifest[name] || "")) throw new Error(`Missing migration checksum: ${name}`);
   }
 }

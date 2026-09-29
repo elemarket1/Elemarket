@@ -22,13 +22,14 @@
     "validate:startup": "node scripts/validate-startup-env.mjs",
     "start": "node scripts/start.mjs",
     "validate:firebase": "node scripts/validate-firebase-client-env.mjs",
-    "build:production": "npm run validate:firebase && vite build",
+    "build:production": "npm run validate:deployment-package && npm run validate:firebase && vite build",
     "security:deps": "npm audit --audit-level=high",
     "security:signatures": "npm audit signatures",
     "security:ci": "npm run security:deps && npm run security:signatures",
     "load:test": "node scripts/load-test.mjs",
     "release:verify": "npm run validate:startup && npm run security:ci && npm run typecheck && npm run lint && npm test && npm run build:production",
-    "providers:configure": "node scripts/configure-payment-providers.mjs"
+    "providers:configure": "node scripts/configure-payment-providers.mjs",
+    "validate:deployment-package": "node scripts/validate-deployment-package.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
