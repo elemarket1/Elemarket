@@ -28,7 +28,7 @@ export async function getPaymentAdapter(providerKey: string, driverKey?: string)
   }
   const capabilities = z.object({
     initialize: z.literal(true), checkout: z.literal(true), verify: z.literal(true), webhook: z.literal(true),
-    refund: z.boolean(), idempotentInitialization: z.literal(true), merchantAccount: z.boolean(),
+    refund: z.boolean(), idempotentInitialization: z.literal(true), merchantAccount: z.boolean(), deliveryDisputeHold: z.boolean(),
     currencies: z.array(z.string().regex(/^[A-Z]{3}$/)).min(1),
     methods: z.array(z.enum(["mobile_money", "card", "bank_transfer"])).min(1),
   }).strict().safeParse(adapter.capabilities);

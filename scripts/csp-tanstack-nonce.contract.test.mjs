@@ -20,7 +20,7 @@ test("TanStack Start receives the same request-scoped nonce used by the CSP", ()
   assert.match(start, /const cspNonce = createCspNonce\(\)/);
   assert.match(start, /securityHeaders\(\{ production: true, nonce: cspNonce \}\)/);
   assert.match(start, /context:\s*\{ cspNonce \}/);
-  assert.match(start, /requestMiddleware: \[csrfMiddleware, securityMiddleware\]/);
+  assert.match(start, /requestMiddleware: \[requestLoggingMiddleware, csrfMiddleware, securityMiddleware\]/);
   assert.match(router, /import \{ getStartContext \} from "@tanstack\/start-storage-context";/);
   assert.match(router, /const context = getStartContext\(\)\.contextAfterGlobalMiddlewares;/);
   assert.match(router, /typeof context\.cspNonce !== "string"/);

@@ -1,6 +1,6 @@
 import { AdminDataBoundary } from "@/components/admin-data-boundary";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pagination } from "@/components/admin-order-ui";
 import { AdminSupportThread } from "@/components/admin-support-thread";
 import { getAdminAccessState } from "./access.functions";
@@ -49,6 +49,24 @@ function AdminSupport() {
   const [draftItems, setDraftItems] = useState<any[]>([]);
   const [draftBusy, setDraftBusy] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const rows = await listSupportInbox({ data: { page: inboxPage, status: inboxStatus } });
+        if (!active) return;
+        setInbox(rows);
+        setInboxError(false);
+        setSelected((current) => current && rows.some((row) => row.id === current) ? current : (rows[0]?.id ?? null));
+      } catch (error) {
+        console.error("[admin-support] inbox refresh failed", error);
+        if (active) setInboxError(true);
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [inboxPage, inboxStatus]);
   async function findProducts() {
     if (search.trim().length < 2) return;
     try {

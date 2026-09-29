@@ -25,9 +25,32 @@ function SupportChat() {
       setConversationId(result.id);
       setMessages(result.messages);
       setDraft((result as any).draft ?? null);
-    } catch { setError("ELEMARKET Support is unavailable right now."); }
+    } catch (error) {
+      console.error("[support] conversation load failed", error);
+      setError("ELEMARKET Support is unavailable right now.");
+    }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setInterval> | undefined;
+
+    const refresh = async () => {
+      if (!active) return;
+      try {
+        await load();
+      } catch {
+        // load() already surfaces a safe customer-facing error.
+      }
+    };
+
+    void refresh();
+    timer = setInterval(() => { void refresh(); }, 5000);
+
+    return () => {
+      active = false;
+      if (timer) clearInterval(timer);
+    };
+  }, []);
 
   async function send() {
     const text = body.trim();
@@ -37,7 +60,10 @@ function SupportChat() {
       await sendSupportMessage({ data: { conversationId, body: text, idempotencyKey: crypto.randomUUID() } });
       setBody("");
       await load();
-    } catch { setError("Message could not be sent. Please try again."); }
+    } catch (error) {
+      console.error("[support] message send failed", error);
+      setError("Message could not be sent. Please try again.");
+    }
     finally { setBusy(false); }
   }
 

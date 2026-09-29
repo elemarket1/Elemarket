@@ -37,6 +37,8 @@ export function AdminSupportThread({
     queryFn: () =>
       readAdminSupportConversation({ data: { conversationId, orderId, page, pageSize: 20 } }),
     retry: false,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
   });
   const staff = useQuery({
     queryKey: ["admin-support-staff", staffPage],

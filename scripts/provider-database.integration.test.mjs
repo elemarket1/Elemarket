@@ -63,7 +63,7 @@ integration('withdrawal eligibility requires 24 hours, blocks disputes and canno
   await query("update merchant_order_status_history set created_at=now()-interval '25 hours' where order_id=$1",[ids.order]);
   assert.equal((await eligible()).eligible,true);
   await assert.rejects(()=>query('select merchant_order_withdrawal_eligibility($1,$2)',['other-merchant',ids.order]),/order not found/);
-  const result = await eligible(); assert.equal(result.eligibilityScope,"elemarket_policy_only");
+  const result = await eligible(); assert.equal(result.providerSettlementControlled,false); assert.equal(result.deliveryHoldGuaranteed,false);
   await query('select open_customer_order_dispute($1,$2,$3)',[ids.order,ids.user,'Synthetic customer dispute']);
   const repeated = await Promise.all(Array.from({length:8},eligible));
   assert.ok(repeated.every(x=>x.eligible===false));

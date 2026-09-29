@@ -33,6 +33,27 @@ test("core governance: merchant approval is gated by email + phone verification 
   assert.match(governance, /perform record_audit_event/);
 });
 
+test("merchant approval allows authorized manual admin verification while preserving an audit trail", () => {
+  const manual = read("migrations/0143_manual_admin_merchant_approval.sql");
+  assert.match(manual, /create or replace function review_merchant_application/);
+  assert.match(manual, /manualApproval/);
+  assert.match(manual, /verificationChecksAtDecision/);
+  assert.match(manual, /perform record_audit_event/);
+  assert.doesNotMatch(manual, /business KYB verification is required before merchant approval/);
+  assert.doesNotMatch(manual, /email and phone verification are required before merchant approval/);
+});
+
+
+test("manual merchant review does not make automated KYB a blocking prerequisite", () => {
+  const src = read("src/routes/admin/merchant-review.functions.ts");
+  const migration = read("migrations/0144_atomic_manual_merchant_approval.sql");
+  assert.match(src, /automated_kyb_unavailable/);
+  assert.match(src, /approve_and_activate_merchant_application/);
+  assert.match(migration, /update merchant_applications\s+set status='approved'/s);
+  assert.match(migration, /activate_approved_merchant_application/);
+  assert.match(migration, /manualApproval.*true/s);
+});
+
 test("core governance: operational retention is explicit and excludes audit evidence", () => {
   assert.match(governance, /data_retention_policies/);
   assert.match(governance, /purge_operational_retention_data/);

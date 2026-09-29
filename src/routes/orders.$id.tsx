@@ -1,3 +1,4 @@
+import { ContactSupportWidget } from "@/components/contact-support-widget";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
@@ -194,12 +195,7 @@ function OrderDetail() {
               <p className="mt-2 text-sm text-market-muted">
                 Chat with ELEMARKET Support about this specific order.
               </p>
-              <a
-                href={`/support?orderId=${encodeURIComponent(id)}`}
-                className="mt-4 inline-flex rounded-xl bg-market-green px-4 py-3 text-sm font-black text-white"
-              >
-                Chat with ELEMARKET Support
-              </a>
+              <ContactSupportWidget mode="order" orderId={id} />
             </div>
             <div className="mt-4 rounded-3xl border border-market-line bg-white p-6">
               <h2 className="text-lg font-black">Order actions</h2>

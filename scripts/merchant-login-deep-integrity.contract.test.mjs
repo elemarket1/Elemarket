@@ -29,7 +29,7 @@ test("approved merchant applications create an active merchant ownership record"
   assert.match(activation, /create or replace function activate_approved_merchant_application/);
   assert.match(activation, /insert into merchants/);
   assert.match(activation, /insert into merchant_accounts/);
-  assert.match(review, /activate_approved_merchant_application/);
+  assert.match(review, /approve_and_activate_merchant_application/);
 });
 
 test("merchant approval uses business address geocoding before activation", () => {

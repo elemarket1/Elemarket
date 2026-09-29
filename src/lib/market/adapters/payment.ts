@@ -26,7 +26,7 @@ export type PaymentAdapterResult = {
 
 export type PaymentCapabilities = {
   initialize: boolean; checkout: boolean; verify: boolean; webhook: boolean; refund: boolean;
-  idempotentInitialization: boolean; merchantAccount: boolean;
+  idempotentInitialization: boolean; merchantAccount: boolean; deliveryDisputeHold: boolean;
   currencies: readonly string[]; methods: readonly string[];
 };
 export interface PaymentProviderAdapter {
@@ -62,7 +62,7 @@ export type VerifiedPayment = {
 };
 
 export class PreviewPaymentAdapter implements PaymentProviderAdapter {
-  readonly capabilities: PaymentCapabilities = { initialize: true, checkout: true, verify: false, webhook: false, refund: false, idempotentInitialization: true, merchantAccount: false, currencies: ['GHS'], methods: ['mobile_money','card','bank_transfer'] };
+  readonly capabilities: PaymentCapabilities = { initialize: true, checkout: true, verify: false, webhook: false, refund: false, idempotentInitialization: true, merchantAccount: false, deliveryDisputeHold: false, currencies: ['GHS'], methods: ['mobile_money','card','bank_transfer'] };
   readonly checkoutHosts: readonly string[] = [];
   readonly supportsIdempotentInitialization = true;
   async createPayment(input: PaymentAdapterInput): Promise<PaymentAdapterResult> {

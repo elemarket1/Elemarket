@@ -20,10 +20,11 @@ test("homepage opts into Contact Us while cart and checkout use Order Support", 
   assert.match(checkout, /<ContactSupportWidget mode="order" \/>/);
 });
 
-test("support contact destinations are deployment-configured", () => {
-  assert.match(widget, /VITE_ELEMARKET_SUPPORT_EMAIL/);
-  assert.match(widget, /VITE_ELEMARKET_SUPPORT_PHONE/);
-  assert.match(widget, /VITE_ELEMARKET_SUPPORT_WHATSAPP/);
+test("support uses the authenticated in-app chat instead of hardcoded contact destinations", () => {
+  assert.match(widget, /getSupportConversation/);
+  assert.match(widget, /sendSupportMessage/);
+  assert.match(widget, /fixed bottom-4 right-4/);
+  assert.doesNotMatch(widget, /mailto:|tel:|wa\.me/);
 });
 
 test("support chat has server-side ownership and idempotency boundaries", () => {
@@ -42,9 +43,9 @@ test("support chat has server-side ownership and idempotency boundaries", () => 
 test("order support carries a server-validated order context", () => {
   const support = readFileSync(new URL("../src/routes/support.tsx", import.meta.url), "utf8");
   const orderDetail = readFileSync(new URL("../src/routes/orders.$id.tsx", import.meta.url), "utf8");
-  assert.match(support, /URLSearchParams\(window\.location\.search\)/);
+  assert.match(support, /getSupportConversation/);
   assert.match(support, /orderId/);
-  assert.match(orderDetail, /\/support\?orderId=\$\{encodeURIComponent\(id\)\}/);
+  assert.match(orderDetail, /ContactSupportWidget mode=\"order\" orderId=\{id\}/);
 });
 
 test("support idempotency rejects key reuse with a different message body", () => {

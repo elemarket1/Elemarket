@@ -3,7 +3,7 @@ export const paymentDrivers = Object.freeze({
   paystack: Object.freeze({
     required: ['SECRET'], checkoutHosts: ['checkout.paystack.com'],
     capabilities: Object.freeze({ initialize: true, checkout: true, verify: true, webhook: true, refund: true,
-      idempotentInitialization: true, merchantAccount: true,
+      idempotentInitialization: true, merchantAccount: true, deliveryDisputeHold: false,
       currencies: ['GHS'], methods: ['mobile_money', 'card', 'bank_transfer'] }),
   }),
 });
@@ -51,76 +51,40 @@ function configuredOrigin(value, component, allowPath = false) {
 /** @param {Record<string,string|undefined>} [environment] */
 export function validateProviderConfiguration(environment = process.env) {
   if (!['production', 'staging', 'development', 'preview'].includes(environment.ELEMARKET_ENV || '')) throw new Error('ELEMARKET_ENV must be a canonical environment identifier');
-
-  // Only core runtime components are mandatory at startup. Optional integrations
-  // are validated when explicitly selected; absence must not prevent the marketplace
-  // from booting. This keeps provider configuration deployment-owned and vendor-neutral.
-  const requiredComponents = new Set(['storage']);
-
   for (const component of Object.keys(components)) {
-    const spec = components[component];
-    const configured = environment[spec.selection]?.trim();
-
-    if (!configured && !requiredComponents.has(component)) continue;
-
     const selected = selectedProvider(component, environment);
     const missing = selected.required.filter(key => !environment[key]?.trim());
     if (missing.length) throw new Error(`${component} provider '${selected.key}': missing configuration ${missing.join(', ')}`);
   }
-
-  if (selectedProvider('search', environment).key === 'typesense') {
-    configuredOrigin(environment.TYPESENSE_HOST || '', 'search provider typesense');
-  }
-
+  if (selectedProvider('search', environment).key === 'typesense') configuredOrigin(environment.TYPESENSE_HOST || '', 'search provider typesense');
   const storage = selectedProvider('storage', environment).key;
   if (storage === 's3') {
     configuredOrigin(environment.STORAGE_ENDPOINT || '', 'storage provider s3');
     if (!/^[a-z0-9-]{1,64}$/.test(environment.STORAGE_REGION || '')) throw new Error('storage provider s3: invalid STORAGE_REGION');
     if (!/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/.test(environment.STORAGE_BUCKET || '')) throw new Error('storage provider s3: invalid STORAGE_BUCKET');
   }
-
   if (storage === 'r2') {
     if (!/^[a-f0-9]{32}$/i.test(environment.CLOUDFLARE_R2_ACCOUNT_ID || '')) throw new Error('storage provider r2: invalid CLOUDFLARE_R2_ACCOUNT_ID');
     if (!/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/.test(environment.CLOUDFLARE_R2_BUCKET || '')) throw new Error('storage provider r2: invalid CLOUDFLARE_R2_BUCKET');
   }
-
-  if (environment.ELEMARKET_KYB_PROVIDER?.trim() && selectedProvider('kyb', environment).key === 'fylings' && environment.FYLINGS_BASE_URL) {
-    configuredOrigin(environment.FYLINGS_BASE_URL, 'kyb provider fylings');
-  }
-
+  if (selectedProvider('kyb', environment).key === 'fylings' && environment.FYLINGS_BASE_URL) configuredOrigin(environment.FYLINGS_BASE_URL, 'kyb provider fylings');
   if (selectedProvider('push', environment).key === 'fcm') {
     try {
       const account = JSON.parse(environment.FCM_SERVICE_ACCOUNT_JSON || '');
       if (![account.project_id, account.client_email, account.private_key].every(x => typeof x === 'string' && x.trim())) throw new Error();
     } catch { throw new Error('push provider fcm: invalid FCM_SERVICE_ACCOUNT_JSON (project_id/client_email/private_key required)'); }
   }
-
-  if (environment.ELEMARKET_OTP_PROVIDER?.trim() && selectedProvider('otp', environment).key === 'arkesel' && (environment.ARKESEL_OTP_SENDER_ID?.trim().length || 0) > 11) {
-    throw new Error('otp provider arkesel: invalid ARKESEL_OTP_SENDER_ID');
-  }
-
-  // Delivery is optional. If no provider is explicitly selected, startup continues.
-  // When selected, its endpoint and secret are still strictly validated.
+  if (selectedProvider('otp', environment).key === 'arkesel' && (environment.ARKESEL_OTP_SENDER_ID?.trim().length || 0) > 11) throw new Error('otp provider arkesel: invalid ARKESEL_OTP_SENDER_ID');
   const delivery = environment.ELEMARKET_DELIVERY_PROVIDER?.trim();
-  if (delivery) {
-    if (!/^[a-z0-9_-]{2,64}$/.test(delivery) || delivery === 'preview') throw new Error('delivery: invalid shared-environment provider identifier');
-    const deliveryPrefix = `ELEMARKET_DELIVERY_${delivery.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`;
-    for (const suffix of ['ENDPOINT','SECRET']) {
-      if (!environment[`${deliveryPrefix}_${suffix}`]?.trim()) {
-        throw new Error(`delivery provider '${delivery}': missing configuration ${deliveryPrefix}_${suffix}`);
-      }
-    }
-    configuredOrigin(environment[`${deliveryPrefix}_ENDPOINT`] || '', 'delivery', true);
-  }
-
-  // Payments are optional at application startup. If configured, every selected
-  // payment alias and its reviewed driver must still pass strict validation.
+  if (!delivery) throw new Error('delivery: missing configuration ELEMARKET_DELIVERY_PROVIDER');
+  if (!/^[a-z0-9_-]{2,64}$/.test(delivery) || delivery === 'preview') throw new Error('delivery: invalid shared-environment provider identifier');
+  const deliveryPrefix = `ELEMARKET_DELIVERY_${delivery.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`;
+  for (const suffix of ['ENDPOINT','SECRET']) if (!environment[`${deliveryPrefix}_${suffix}`]?.trim()) throw new Error(`delivery provider '${delivery}': missing configuration ${deliveryPrefix}_${suffix}`);
+  configuredOrigin(environment[`${deliveryPrefix}_ENDPOINT`] || '', 'delivery', true);
   const providers = (environment.ELEMARKET_PAYMENT_PROVIDERS || '').split(',').map(x => x.trim()).filter(Boolean);
-  if (!providers.length) return;
-
+  if (!providers.length) throw new Error('payment: missing configuration ELEMARKET_PAYMENT_PROVIDERS');
   const prefixes = providers.map(paymentPrefix);
   if (new Set(prefixes).size !== prefixes.length) throw new Error('payment: provider aliases collide');
-
   for (const key of providers) {
     const prefix = paymentPrefix(key);
     const driverKey = environment[`${prefix}_DRIVER`]?.trim();
@@ -129,8 +93,7 @@ export function validateProviderConfiguration(environment = process.env) {
     const missing = driver.required.map(suffix => `${prefix}_${suffix}`).filter(name => !environment[name]?.trim());
     if (missing.length) throw new Error(`payment provider '${key}': missing configuration ${missing.join(', ')}`);
   }
-
-  // Provider-neutral settlement: the selected payment driver must only satisfy
-  // the capabilities it actually implements. Delivery + 24h/no-dispute is an
-  // ELEMARKET merchant-withdrawal policy enforced server-side, not a provider capability.
+  // Settlement timing is deliberately not a provider capability requirement.
+  // ELEMARKET does not custody customer funds; provider settlement/refunds remain
+  // external, while marketplace eligibility/dispute rules are enforced server-side.
 }

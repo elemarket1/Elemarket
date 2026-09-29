@@ -50,7 +50,7 @@ test('runtime startup verifies alias credentials, complete migrations and exact 
     assert.match(run('scripts/validate-runtime-db.mjs').stderr,/capability mismatch/);
     await db.query('delete from payment_driver_capabilities');
     assert.match(run('scripts/validate-runtime-db.mjs').stderr,/missing database capability metadata/);
-    await db.query("insert into payment_driver_capabilities(driver_key,refund) values('paystack',true)");
+    await db.query("insert into payment_driver_capabilities(driver_key,refund,delivery_dispute_hold) values('paystack',true,false)");
     delete environment.ELEMARKET_PAYMENT_PROCESSOR_SECRET;
     assert.match(run('scripts/validate-runtime-db.mjs').stderr,/processor.*configuration mismatch/);
     environment.ELEMARKET_PAYMENT_PROCESSOR_SECRET='synthetic';

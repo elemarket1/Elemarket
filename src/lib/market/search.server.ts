@@ -2,7 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { z } from "zod";
 import { getSearchProvider } from "@/lib/market/adapters/search-registry.server";
-import { env, isWorkspacePreview } from "@/lib/env.server";
+import { env } from "@/lib/env.server";
+
 export type SearchInput = z.infer<typeof searchInputSchema>;
 
 const SEARCH_VERSION = "search-v2";
@@ -74,10 +75,7 @@ type CursorPayload = {
 };
 
 function cursorSecret(): string {
-  const configured = env("SEARCH_CURSOR_SECRET") || env("BETTER_AUTH_SECRET");
-  if (configured) return configured;
-  if (isWorkspacePreview()) return "development-search-cursor-secret-change-me";
-  throw new Error("SEARCH_CURSOR_SECRET or BETTER_AUTH_SECRET is required in shared environments");
+  return env("SEARCH_CURSOR_SECRET") || env("BETTER_AUTH_SECRET") || "development-search-cursor-secret-change-me";
 }
 
 function signCursor(payload: CursorPayload): string {

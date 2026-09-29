@@ -10,7 +10,7 @@ const staging = {
   ELEMARKET_ENV: 'staging', ELEMARKET_STORAGE_PROVIDER: 's3', STORAGE_ENDPOINT: 'https://objects.example.com', STORAGE_REGION: 'eu-west-1', STORAGE_BUCKET: 'private-objects', STORAGE_ACCESS_KEY_ID: 'synthetic', STORAGE_SECRET_ACCESS_KEY: 'synthetic',
   ELEMARKET_LOCATION_PROVIDER: 'geoapify', GEOAPIFY_API_KEY: 'synthetic', ELEMARKET_EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 'synthetic', RESEND_FROM_EMAIL: 'sender@example.com', RESEND_WEBHOOK_SECRET: 'synthetic',
   ELEMARKET_OTP_PROVIDER: 'arkesel', ARKESEL_API_KEY: 'synthetic', ARKESEL_OTP_SENDER_ID: 'ELEMARKET', ELEMARKET_PUSH_PROVIDER: 'disabled', ELEMARKET_KYB_PROVIDER: 'manual',
-  ELEMARKET_PAYMENT_PROVIDERS: 'processor', ELEMARKET_PAYMENT_PROCESSOR_DRIVER: 'paystack', ELEMARKET_PAYMENT_PROCESSOR_SECRET: 'synthetic',
+  ELEMARKET_PAYMENT_PROVIDERS: 'processor', ELEMARKET_PAYMENT_PROCESSOR_DRIVER: 'paystack', ELEMARKET_PAYMENT_PROCESSOR_SECRET: 'synthetic', ELEMARKET_SETTLEMENT_MODE: 'provider_direct_uncontrolled',
 };
 
 test('selected capabilities require only their own credentials; R2, Hubtel, FCM and Fylings are absent', () => {
@@ -36,8 +36,11 @@ test('Paystack is not a mandatory selection; unavailable Hubtel/http fail rather
   const env = { ...staging }; delete env.ELEMARKET_PAYMENT_PROCESSOR_DRIVER;
   assert.throws(() => validateProviderConfiguration(env), /processor.*missing configuration.*DRIVER/);
 });
-test('production remains provider-neutral and does not require a settlement-control capability', () => {
-  assert.doesNotThrow(() => validateProviderConfiguration({ ...staging, ELEMARKET_ENV: 'production' }));
+test('production does not require a provider-controlled settlement hold', () => {
+  for (const env of [
+    { ...staging, ELEMARKET_ENV: 'production' },
+    { ...staging, ELEMARKET_ENV: 'production', ELEMARKET_SETTLEMENT_MODE: 'provider_direct_uncontrolled' },
+  ]) assert.doesNotThrow(() => validateProviderConfiguration(env));
 });
 test('provider aliases cannot collide on credential environment names', () => {
   assert.throws(() => validateProviderConfiguration({ ...staging, ELEMARKET_PAYMENT_PROVIDERS: 'bank-a,bank_a' }), /collide/);

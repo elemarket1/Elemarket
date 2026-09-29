@@ -140,7 +140,6 @@
   "0140_payment_driver_binding_lock.sql": "0f2ee4922b8b81e2f7b57425935e90ef0530d01cbe6147e97e0da0db65fd06ff",
   "0141_security_definer_search_paths.sql": "5464fca69c4c144ab5ed0eec156fa3260a68aaf7cd4caed2be69ee03e066691d",
   "0142_transaction_local_observability_counters.sql": "1a2b07e54a36e235ac2ff1e5a1eb96a77da17ad7581ff199c8b52d3da8930c1d",
-  "0143_remove_provider_settlement_control_capability.sql": "da6c70237279f52516042a96e096292bc5a33cb3f237f9040df454cca2e32617",
-  "0144_provider_neutral_withdrawal_dispute_gate.sql": "e06c5380efad00e192baba20e00c2b8a2f5d3f7ff42340baa934a34d89106048",
-  "0145_provider_neutral_merchant_withdrawal_snapshot.sql": "61e6b2e2455a7cd69333f354a16e9f48a8f38421c4c4e23be2f747d73790239d"
+  "0143_manual_admin_merchant_approval.sql": "fcb0ff2bbfdc6ad9bcdcd252e18b82f732dc855265553e24a796e124f29ed74d",
+  "0144_atomic_manual_merchant_approval.sql": "97db840e6988edd4129d11706d423a15d3361ff61bef5a6bf40d8b341e3a77ad"
 }

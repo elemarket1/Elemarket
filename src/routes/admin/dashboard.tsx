@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { loadAdminDashboard, requestAdminProviderRefund, viewMerchantSensitiveData, type AdminDashboardData } from "./dashboard.functions";
 import { getAdminAccessState } from "./access.functions";
 import { reviewMerchantApplication } from "./merchant-review.functions";
 import { loadAdminModeration, moderateCustomer, moderateMerchant, moderateProduct, setMerchantEnterpriseMode, type AdminModerationData } from "./moderation.functions";
 import { loadCommissionPolicy, removeCommissionOverride, setCommissionRule, setGlobalCommissionRule, type AdminCommissionData } from "./fee.functions";
+import { listSupportInbox, type SupportInboxRow } from "@/lib/admin-support.functions";
+import { AdminSupportThread } from "@/components/admin-support-thread";
 
-type AdminDashboardPageData = AdminDashboardData & { moderation: AdminModerationData; commission: AdminCommissionData };
+type AdminDashboardPageData = AdminDashboardData & { moderation: AdminModerationData; commission: AdminCommissionData; supportInbox: SupportInboxRow[] };
 
 export const Route = createFileRoute("/admin/dashboard")({
   loader: async (): Promise<AdminDashboardPageData> => {
@@ -14,8 +16,8 @@ export const Route = createFileRoute("/admin/dashboard")({
     if (!access.authenticated || !access.isAdmin) {
       throw redirect({ to: "/admin" });
     }
-    const [dashboard, moderation, commission] = await Promise.all([loadAdminDashboard(), loadAdminModeration(), loadCommissionPolicy()]);
-    return { ...dashboard, moderation, commission };
+    const [dashboard, moderation, commission, supportInbox] = await Promise.all([loadAdminDashboard(), loadAdminModeration(), loadCommissionPolicy(), listSupportInbox({ data: { page: 0, status: "active" } })]);
+    return { ...dashboard, moderation, commission, supportInbox };
   },
   component: Dashboard,
   errorComponent: () => (
@@ -60,6 +62,24 @@ function Dashboard() {
   const [overrideId, setOverrideId] = useState("");
   const [overrideRate, setOverrideRate] = useState("");
   const [moderationBusy, setModerationBusy] = useState<string | null>(null);
+  const [supportInbox, setSupportInbox] = useState<SupportInboxRow[]>(data.supportInbox);
+  const [selectedSupportId, setSelectedSupportId] = useState<string | null>(data.supportInbox[0]?.id ?? null);
+
+  useEffect(() => {
+    let active = true;
+    const refreshSupport = async () => {
+      try {
+        const rows = await listSupportInbox({ data: { page: 0, status: "active" } });
+        if (!active) return;
+        setSupportInbox(rows);
+        setSelectedSupportId((current) => current && rows.some((row) => row.id === current) ? current : (rows[0]?.id ?? null));
+      } catch (error) {
+        console.error("[admin-support] inbox refresh failed", error);
+      }
+    };
+    const timer = window.setInterval(() => void refreshSupport(), 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
 
   async function setEnterpriseMode(merchantId: string, enable: boolean) {
     const reason = moderationReason[`merchant-enterprise:${merchantId}`]?.trim();
@@ -173,10 +193,41 @@ function Dashboard() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black">Admin Operations</h1><div className="mt-3"><a href="/admin/orders" className="mr-2 inline-flex rounded-xl border border-market-line px-3 py-2 text-xs font-black">Orders</a><a href="/admin/support" className="inline-flex rounded-xl bg-market-green px-3 py-2 text-xs font-black text-white">Open Support Inbox</a> <a href="/admin/campaigns" className="ml-2 inline-flex rounded-xl border border-market-line px-3 py-2 text-xs font-black text-market-ink">Campaign Manager</a></div>
-          <p className="mt-2 text-sm text-market-muted">Operational visibility and controlled merchant review. Sensitive actions remain server-authorized and audited.</p>
+          <p className="mt-2 text-sm text-market-muted">Operational visibility and controlled merchant review. Automated checks are evidence only; authorized admins may manually verify and approve or reject submissions. Sensitive actions remain server-authorized and audited.</p>
         </div>
         {message ? <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{message}</p> : null}
       </div>
+
+      <section className="mt-8 rounded-3xl border border-market-line bg-white p-5 shadow-market sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-black">Customer Support</h2>
+            <p className="mt-1 text-xs text-market-muted">Live customer conversations appear here. Replies stay inside the dashboard.</p>
+          </div>
+          <a href="/admin/support" className="rounded-xl border border-market-line px-3 py-2 text-xs font-black">Full support inbox</a>
+        </div>
+        {supportInbox.length === 0 ? (
+          <p className="mt-4 rounded-2xl bg-market-soft p-4 text-sm text-market-muted">No active customer support conversations.</p>
+        ) : (
+          <div className="mt-4 grid gap-4 lg:grid-cols-[18rem_1fr]">
+            <aside className="max-h-[32rem] overflow-y-auto rounded-2xl border border-market-line">
+              {supportInbox.map((conversation) => (
+                <button key={conversation.id} type="button" onClick={() => setSelectedSupportId(conversation.id)} className={`w-full border-b border-market-line p-3 text-left last:border-0 ${selectedSupportId === conversation.id ? "bg-market-soft" : "bg-white hover:bg-market-soft/60"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-xs font-black">Customer {conversation.customerId.slice(0, 8)}</span>
+                    <span className="rounded-full bg-market-green/10 px-2 py-0.5 text-[9px] font-black text-market-green">{conversation.status.replaceAll("_", " ")}</span>
+                  </div>
+                  {conversation.orderId ? <p className="mt-1 text-[10px] text-market-muted">Order: {conversation.orderId}</p> : null}
+                  <p className="mt-1 line-clamp-2 text-[11px] text-market-muted">{conversation.lastMessage ?? "No message yet"}</p>
+                </button>
+              ))}
+            </aside>
+            <div className="min-w-0">
+              {selectedSupportId ? <AdminSupportThread key={selectedSupportId} conversationId={selectedSupportId} orderId={supportInbox.find((c) => c.id === selectedSupportId)?.orderId ?? null} /> : null}
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metricLabels.map(([key, label]) => (

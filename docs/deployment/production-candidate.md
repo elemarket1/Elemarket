@@ -6,7 +6,7 @@ Payment collection, merchant settlement and refunds belong to the payment provid
 
 The installed Paystack adapter initializes subaccount payments and requests refunds. It has **no delivery-relative settlement hold/release capability**. Neither a SQL eligibility flag nor a provider calendar settlement schedule guarantees delivery plus 24 hours: delivery can happen after a provider settlement. The official [Paystack OpenAPI contract](https://github.com/PaystackOSS/openapi/blob/main/dist/paystack.yaml) exposes transaction/subaccount/refund operations, but the installed integration has no per-order settlement release operation. Do not invent one or replace settlement with platform transfers.
 
-Production uses provider-neutral payment adapters. Provider capabilities describe only what each adapter actually implements (initialization, verification, refunds, merchant-account support, currencies and methods); no provider is required to control ELEMARKET’s delivery-relative settlement window. The delivery + 24 hours and no-dispute eligibility rule remains server-side for merchant withdrawals, and ELEMARKET does not hold customer funds or implement local escrow.
+Production now requires `provider_delivery_hold` and an installed adapter with a verified `deliveryDisputeHold` capability. The existing adapter does not supply it, so production startup and payment initialization fail closed. `provider_direct_uncontrolled` is restricted to staging without customer funds. The delivery + 24 hours and no-dispute eligibility functions remain server-side; fund release and local escrow stay disabled. See [provider architecture](provider-architecture.md) for the missing external contract and configuration requirements.
 
 ## Runtime
 
