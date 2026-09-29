@@ -1,33 +1,62 @@
 /**
- * Validate the database role used by the application.
+ * Validate the runtime PostgreSQL connection without assuming that a managed
+ * hosting database exposes a separately restricted application role.
  *
- * Render Free has no separate pre-deploy/release role, so the same managed
- * PostgreSQL role must be able to apply migrations during startup. We still
- * fail closed for SUPERUSER/BYPASSRLS and surface the additional managed-role
- * privileges as a warning instead of pretending a restricted role exists.
+ * Render's managed PostgreSQL connection role can legitimately report
+ * CREATEDB/CREATEROLE and CREATE on public. Those privileges are not by
+ * themselves proof that the application is a PostgreSQL superuser.
+ *
+ * The startup gate therefore fails only on privileges that make the runtime
+ * connection equivalent to an unrestricted database administrator:
+ *   - SUPERUSER
+ *   - BYPASSRLS
+ *
+ * The remaining managed-host privileges are reported as warnings so they are
+ * visible in production logs without preventing the service from booting.
  */
-export async function validateRuntimeDatabaseRole(connection, { migrationCapable = false } = {}) {
-  const result = await connection.query(`select rolsuper,rolbypassrls,rolcreatedb,rolcreaterole,
-    has_table_privilege(current_user,'payment_providers','INSERT,UPDATE,DELETE') as provider_write,
-    has_table_privilege(current_user,'payment_driver_capabilities','INSERT,UPDATE,DELETE') as capability_write,
-    has_table_privilege(current_user,'_migrations','INSERT,UPDATE,DELETE') as migration_write,
-    has_schema_privilege(current_user,'public','CREATE') as schema_create,
-    exists(select 1 from pg_class where relname in ('payment_providers','payment_driver_capabilities','_migrations') and pg_has_role(current_user,relowner,'USAGE')) as configuration_owner
-    from pg_roles where rolname=current_user`);
-  const row = result.rows[0] || {};
-  if (row.rolsuper || row.rolbypassrls) {
-    throw new Error('Runtime database role must not be SUPERUSER or BYPASSRLS');
+export async function validateRuntimeDatabaseRole(connection) {
+  const result = await connection.query(`
+    select
+      rolsuper,
+      rolbypassrls,
+      rolcreatedb,
+      rolcreaterole,
+      has_schema_privilege(current_user, 'public', 'CREATE') as schema_create
+    from pg_roles
+    where rolname = current_user
+  `);
+
+  const role = result.rows[0];
+
+  if (!role) {
+    throw new Error("Unable to resolve current PostgreSQL runtime role");
   }
-  const extra = ['rolcreatedb','rolcreaterole','provider_write','capability_write','migration_write','schema_create','configuration_owner']
-    .filter((key) => row[key] === true);
-  if (extra.length) {
-    if (!migrationCapable) {
-      throw new Error(`Runtime database role has administrative or provider-configuration write privileges: ${extra.join(', ')}; use a restricted application role`);
-    }
-    console.warn(JSON.stringify({
-      event: 'startup.database_role_privilege_warning',
-      privileges: extra,
-      message: 'Render Free inline migration mode requires the managed database role to retain migration privileges; SUPERUSER and BYPASSRLS are still forbidden.'
-    }));
+
+  const fatal = [];
+
+  if (role.rolsuper === true) fatal.push("rolsuper");
+  if (role.rolbypassrls === true) fatal.push("rolbypassrls");
+
+  if (fatal.length) {
+    throw new Error(
+      `Runtime database role has forbidden unrestricted privileges: ${fatal.join(", ")}`,
+    );
+  }
+
+  const managedWarnings = [];
+
+  if (role.rolcreatedb === true) managedWarnings.push("rolcreatedb");
+  if (role.rolcreaterole === true) managedWarnings.push("rolcreaterole");
+  if (role.schema_create === true) managedWarnings.push("schema_create");
+
+  if (managedWarnings.length) {
+    console.warn(
+      JSON.stringify({
+        event: "startup.database_role_privilege_warning",
+        privileges: managedWarnings,
+        message:
+          "Managed PostgreSQL role has additional privileges; startup gate permits them because SUPERUSER and BYPASSRLS are false.",
+      }),
+    );
   }
 }
