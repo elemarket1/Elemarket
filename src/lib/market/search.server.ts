@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { z } from "zod";
 import { getSearchProvider } from "@/lib/market/adapters/search-registry.server";
@@ -77,11 +77,7 @@ type CursorPayload = {
 function cursorSecret(): string {
   const configured = env("SEARCH_CURSOR_SECRET") || env("BETTER_AUTH_SECRET");
   if (configured) return configured;
-  if (isWorkspacePreview()) {
-    const runtime = globalThis as typeof globalThis & { __elemarketSearchCursorSecret__?: string };
-    runtime.__elemarketSearchCursorSecret__ ??= randomBytes(32).toString("hex");
-    return runtime.__elemarketSearchCursorSecret__;
-  }
+  if (isWorkspacePreview()) return "development-search-cursor-secret-change-me";
   throw new Error("SEARCH_CURSOR_SECRET or BETTER_AUTH_SECRET is required in shared environments");
 }
 

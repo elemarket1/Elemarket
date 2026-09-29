@@ -4,8 +4,9 @@ import { Pool } from 'pg';
 import { postgresConfig } from './postgres-config.mjs';
 import manifest from '../migrations.sha256.json' with { type: 'json' };
 const pool = new Pool(postgresConfig(process.env.DATABASE_URL));
+const migrationCapable = process.argv.includes('--migration-capable');
 try {
-  if (['production','staging'].includes(process.env.ELEMARKET_ENV)) await validateRuntimeDatabaseRole(pool);
+  if (['production','staging'].includes(process.env.ELEMARKET_ENV)) await validateRuntimeDatabaseRole(pool, { migrationCapable });
   const applied = await pool.query('select name,checksum from _migrations');
   if (Object.entries(manifest).some(([name,hash]) => !applied.rows.some(r=>r.name===name && r.checksum===hash))) throw new Error('Deployment migrations are missing or mismatched');
   const active = await pool.query("select 1 from payment_providers where status='active' limit 1");

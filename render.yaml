@@ -3,7 +3,6 @@ services:
     name: elemarket-web
     env: node
     buildCommand: npm ci && npm run build:production
-    preDeployCommand: npm run db:migrate
     startCommand: node scripts/start.mjs
     healthCheckPath: /api/health
     autoDeploy: true
